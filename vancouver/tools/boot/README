@@ -1,7 +1,0 @@
-This directory contains multiboot tools used for booting.
-All follow the multiboot chainloading approach.
-
-* unzip:  unzip and relocate all following modules
-* bender: look for serial controllers and update BIOS data area
-* vilo:   gPXE loader (old linux format)
-* munich: start linux from multiboot
