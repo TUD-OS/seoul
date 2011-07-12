@@ -1,0 +1,397 @@
+#!/usr/bin/perl -w
+
+=head1 NAME
+
+novaboot - NOVA boot script interpreter
+
+=head1 SYNOPSIS
+
+B<novaboot> [ --help ] [ --append=... ] [ --bender ] [ --config=<file> ]
+            [ --dump-config ] [ --grub ] [ --qemu-flags=<flags> ] [--serial ]
+	    [ --server ]
+
+=head1 DESCRIPTION
+
+This program boots the NOVA system either in qemu or on a real
+hardware. Its operation is controlled by a script which determines
+which binaries to load and their parameters. See below for the syntax.
+
+=over 4
+
+=item -a, --append=<parameters>
+
+    Appends a string to the root task's command line.
+
+=item -b, --bender
+
+    Boot bender tool to find serial ports.
+
+=item -c, --config=<filename>
+
+    Use a different config than the default one (i.e. ~/.novaboot).
+
+=item --dump-config
+
+    Dumps current configuration to stdout end exits. Useful as an
+    initial template for a config file.
+
+=item -g, --grub[=<filename>]
+
+    Generate grub menu file. If the file name is not specified,
+    menu.lst is used. The file name is relative to NUL build
+    directory.
+
+=item -h, --help
+
+    Print short (-h) or long (--help) help.
+
+=item -q, --qemu-flags=<flags>
+
+    Use other qemu flags than are the default, i.e. "-cpu coreduo -smp 2".
+
+=item --server[=[user@]server:path]
+
+    Copy all files needed for booting to a server (implies -g). The
+    files will be copied to the directory path/NAME/, where NAME is
+    the name of the novaboot script. Additionally, a file called
+    path/menu.lst will be created on the server by concatenating all
+    path/*/menu.lst files found on the server.
+
+=item -s, --serial[=device]
+
+    Use serial line to boot (and reset) the test machine. Implies
+    --server. The default value is /dev/ttyUSB0.
+
+=back
+
+=head1 NOVA BOOT SCRIPT SYNTAX
+
+The syntax tries to mimic POSIX shell syntax. All file names in the
+script are relative to the NUL build directory (see below).
+
+Lines starting with "#" are ignored.
+
+Lines that end with "\" are concatenated with the following line
+after removal of the final "\".
+
+Lines matching '[A-Z_]+=' regexp assign values to internal variables.
+See VARIABLES section.
+
+First word on a line represents the filename of the module to load,
+the remaining words are its command line parameters.
+
+When the line ends with "<<WORD" then the subsequent lines until the
+line containing only WORD are copied literally to the file named on
+that line.
+
+Example:
+  #!/usr/bin/env novaboot
+  WVDESC=Example program
+  nul/bin/apps/sigma0.nul S0_DEFAULT script_start:1,1 \
+    verbose hostkeyb:0,0x60,1,12,2
+  nul/bin/apps/hello.nul
+  hello.nulconfig <<EOF
+  sigma0::mem:16 name::/s0/log name::/s0/timer name::/s0/fs/rom ||
+  rom://nul/bin/apps/hello.nul
+  EOF
+
+This example will load three modules: sigma0.nul, hello.nul and
+hello.nulconfig. sigma0 gets some command line parameters and
+hello.nulconfig file is generated on the fly from the lines between
+<<EOF and EOF.
+
+=head2 VARIABLES
+
+The following variables are interpreted in the novaboot script:
+
+=over 4
+
+=item WVDESC Description of the wvtest-compliant program.
+=item QEMU_FLAGS Use specific qemu flags (can be overriden by -q).
+
+=back
+
+=head1 CONFIGURATION FILE
+
+novaboot can read its configuration from ~/.novaboot (or another file
+specified with -c parameter). It is a file with perl syntax, which
+sets values to certain variables. The current configuration can be
+dumped with --dump-config switch. Use
+
+    novaboot --dumpconfig > ~/.novaboot
+
+to create a default config file and modify if to your needs. Some
+configuration variables can be overriden by environment variables (see
+below).
+
+=head1 ENVIRONMENT VARIABLES
+
+Some options can be specified not only via config file or command line
+but also through environment variables. Environment overrides the
+configuration file and command line parameters override the
+environment.
+
+=over 4
+
+=item NOVABOOT_CONFIG
+
+    A name of default novaboot configuration file.
+
+=item NOVABOOT_BENDER
+
+    Defining this variable has the same meaning as --bender option.
+
+=back
+
+=cut
+
+use Getopt::Long;
+use Pod::Usage;
+use File::Basename;
+
+# Get configuration
+$CFG::builddir = $ENV{'HOME'}."/devel/nul/build";
+$CFG::hypervisor = "bin/apps/hypervisor";
+$CFG::server = "os.inf.tu-dresden.de:boot/novaboot";
+$CFG::server_grub_prefix = "(nd)/tftpboot/sojka/novaboot";
+$CFG::grub_keys = "/novaboot\n\n/\$NAME\n\n";
+$CFG::genisoimage = "genisoimage";
+
+my $qemu_flags = "-cpu coreduo -smp 2";
+
+
+sub read_config($) {
+    my ($cfg) = @_;
+    {
+	package CFG; # Put config data into a separate namespace
+	my $rc = do($cfg);
+
+	# Check for errors
+	if ($@) {
+	    die("ERROR: Failure compiling '$cfg' - $@");
+	} elsif (! defined($rc)) {
+	    die("ERROR: Failure reading '$cfg' - $!");
+	} elsif (! $rc) {
+	    die("ERROR: Failure processing '$cfg'");
+	}
+    }
+}
+
+my $cfg = $ENV{'NOVABOOT_CONFIG'};
+if (! $cfg or ! -s $cfg) { $cfg = $ENV{'HOME'}."/.novaboot"; }
+if (-s $cfg) { read_config($cfg); }
+
+(my $config_name = $ARGV[0] || "Unknown") =~ s#.*/##;
+my %configs;
+my %variables;
+my @modules = ();
+my $file;
+my $line;
+my $EOF;
+
+# Command line
+my ($append, $bender, $dump_config, $grub_config, $help, $man, $qemu_flags_cmd, $serial, $server);
+
+GetOptions (
+    "append|a=s"     => \$append,
+    "bender|b"       => \$bender,
+    "config|c=s"     => sub { read_config($_[1]); },
+    "dump-config"    => \$dump_config,
+    "grub|g:s" 	     => \$grub_config,
+    "qemu-flags|q=s" => \$qemu_flags_cmd,
+    "serial|s:s"     => \$serial,
+    "server:s" 	     => \$server,
+    "h" 	     => \$help,
+    "help" 	     => \$man,
+    ) or pod2usage(2);
+pod2usage(1) if $help;
+pod2usage(-exitstatus => 0, -verbose => 2) if $man;
+
+if ($server) { $CFG::server = $server; }
+
+if ($dump_config) {
+    print
+"\$builddir = '$CFG::builddir';
+\$hypervisor = '$CFG::hypervisor';
+\$server = '$CFG::server';
+\$server_grub_prefix = '$CFG::server_grub_prefix';
+\$grub_keys = '$CFG::grub_keys';
+\$genisoimage = '$CFG::genisoimage';
+";
+    exit;
+}
+
+if (defined $serial) {
+    $serial ||= "/dev/ttyUSB0";
+    $server = '';
+}
+
+if (defined $grub_config) {
+    $grub_config ||= "menu.lst";
+}
+
+my $filename=$ARGV[0];
+
+# Parse the config
+while (<>) {
+    chomp();
+    next if /^#/ || /^\s*$/;	# Skip comments and empty lines
+    if (/^([A-Z_]+)=(.*)$/) {	# Internal variable
+	$variables{$1} = $2;
+	next;
+    }
+    if (/^([^ ]*)(.*)<<([^ ]*)$/) { # Heredoc start
+	push @modules, "$1$2";
+	$file = [];
+	$configs{$1} = $file;
+	$EOF = $3;
+	next;
+    }
+    if ($file && $_ eq $EOF) {	# Heredoc end
+	undef $file;
+	next;
+    }
+    if ($file) {		# Heredoc content
+	push @{$file}, "$_\n";
+	next;
+    }
+    if (/\\$/) {		# Line continuation
+	$line .= substr($_, 0, length($_)-1);
+	next;
+    }
+
+    $line .= $_;
+    $line .= " $append" if ($append && scalar(@modules) == 0);
+    push @modules, $line;
+    $line = '';
+}
+
+@modules = ($CFG::hypervisor . " serial spinner", @modules);
+@modules = ("../base/tools/boot/bender", @modules) if ($bender || defined $ENV{'NOVABOOT_BENDER'});
+
+chdir($CFG::builddir);
+print "novaboot: Entering directory `$CFG::builddir'\n";
+
+# always flush
+$| = 1;
+
+sub generate_configs($$) {
+    my ($base, $configs) = @_;
+    foreach my $fn(keys %$configs) {
+	$config = $$configs{$fn};
+	open(my $f, '>', $fn);
+	map { s|^rom://(.*)|rom://$base$1|; print $f "$_"; } @{$config};
+	close($f);
+    }
+}
+
+sub generate_grub_config($$$;$)
+{
+    my ($filename, $base, $modules_ref, $prepend) = @_;
+    open(my $fg, '>', $filename) or die "$filename: $!";
+    print $fg "$prepend\n" if $prepend;
+    print $fg "title $config_name\n";
+    my $first = 1;
+    foreach (@$modules_ref) {
+	if ($first) {
+	    $first = 0;
+	    my ($kbin, $kcmd) = split(' ', $_, 2);
+	    $kcmd = '' if !defined $kcmd;
+	    print $fg "kernel ${base}$kbin $kcmd\n";
+	} else {
+	    print $fg "module $base$_\n";
+	}
+    }
+}
+
+if ($variables{WVDESC}) {
+    print "Testing \"$variables{WVDESC}\" in $filename:\n";
+} elsif ($filename =~ /\.wv$/) {
+    print "Testing \"all\" in $filename:\n";
+}
+
+if (defined $grub_config) {
+    generate_configs("", \%configs);
+    generate_grub_config($grub_config, "", \@modules);
+    print("$CFG::builddir/$grub_config generated.\n");
+    exit;
+}
+
+my $run_qemu = 1;
+if (defined $server) {
+    $run_qemu = 0;
+    generate_configs("$CFG::server_grub_prefix/$config_name/", \%configs);
+    $grub_config ||= "menu.lst";
+    generate_grub_config($grub_config, "$CFG::server_grub_prefix/$config_name/", \@modules);
+    my ($hostname, $path) = split(":", $CFG::server, 2);
+    my $files = "$grub_config " . join(" ", map({ ($file) = m/([^ ]*)/; $file; } @modules));
+    system("set -x; tar czhf - $files | ssh $hostname 'cd $path; mkdir -p $config_name; tar xzpf - -C $config_name; cat */menu.lst > menu.lst'");
+}
+
+if ($serial) {
+    # TODO: Reset the connected machine
+    system("stty -F $serial  115200");
+    open(my $fh, "+<", $serial) || die;
+    while (<$fh>) {
+	print;
+	if (/Press any key to continue/) { print $fh "\n"; last; }
+    }
+    (my $keys = $CFG::grub_keys) =~ s/\$NAME/$config_name/;
+    foreach ($keys) {
+	print $fh $_;
+	sleep(0.05);
+    }
+    sleep(1);
+    print $fh "\n";
+    while (<$fh>) {
+	print;
+    }
+    exit;
+}
+
+if ($run_qemu) {
+    $qemu_flags = $variables{QEMU_FLAGS} if $variables{QEMU_FLAGS};
+    $qemu_flags = $qemu_flags_cmd if $qemu_flags_cmd;
+
+    if (0) {
+	# Boot NOVA with grub
+	generate_configs("(cd)/", \%configs);
+	$grub_config ||= "menu.lst";
+	generate_grub_config($grub_config, "(cd)/", \@modules, "timeout 0");
+
+	my $files = "boot/grub/menu.lst=$grub_config " . join(" ", map({ ($path,undef,$file) = m|(([^ ]*)/)?([^ ]*)|; $path ||= ''; "$path$file=$path$file"; } @modules));
+	my $ret = system("set -x; $CFG::genisoimage -R -b stage2_eltorito -no-emul-boot -boot-load-size 4 -boot-info-table -hide-rr-moved -J -joliet-long -o $config_name.iso -graft-points bin/boot/grub/ $files");
+	if ($ret >> 8) { die("The above command failed!"); }
+
+	$qemu_flags .= " -cdrom $config_name.iso";
+    } else {
+	# Boot NOVA without GRUB
+
+	# Non-patched qemu doesn't like commas, but NUL can live with pluses instead of commans
+	foreach (@modules) {s/,/+/g;}
+	generate_configs("", \%configs);
+
+	my ($kbin, $kcmd) = split(' ', shift(@modules), 2);
+	$kcmd = '' if !defined $kcmd;
+	my $initrd = join ",", @modules;
+
+	$qemu_flags .= " -kernel $kbin -append '$kcmd' -initrd \"$initrd\""
+    }
+    if (!$ENV{'WVTESTRUN'}) {
+	$qemu_flags .= " -serial stdio"
+    } else {
+	# We must use pipe and cat to get qemu's serial output to
+	# stdout. Qemu's stdio backend cannot be used here as it
+	# accesses terminal which is not allowed when we are executing
+	# under wvtestrun because we are not the controlling process
+	# of the terminal.
+	use POSIX qw(mkfifo);
+	mkfifo("tmppipe.in", 0600) unless (-p "tmppipe.in");
+	mkfifo("tmppipe.out", 0600) unless (-p "tmppipe.out");
+	system("cat tmppipe.out &");
+	$qemu_flags .= " -chardev pipe,id=mypipe,path=tmppipe -serial chardev:mypipe";
+    }
+    my $cmd = "qemu -name '$config_name' $qemu_flags";
+    print "Running: $cmd\n";
+    exec $cmd;
+}
