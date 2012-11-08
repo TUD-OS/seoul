@@ -1,0 +1,8 @@
+* Seoul
+
+*This is currently a placeholder. Please, come back later.*
+
+A x86 Virtual Machine Monitor including device modules and instruction
+emulator. Standalone version of the Vancouver VMM, which is used in
+[[https://github.com/TUD-OS/NUL][NUL]], [[https://github.com/TUD-OS/NRE][NRE]], and [[https://github.com/genodelabs/genode][Genode]].
+
