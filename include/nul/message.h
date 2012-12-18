@@ -23,8 +23,6 @@
 #include <nul/types.h>
 #include <nul/compiler.h>
 #include <nul/config.h>
-#include <sys/desc.h>
-#include <sys/utcb.h>
 
 /****************************************************/
 /* IOIO messages                                    */
@@ -431,6 +429,7 @@ struct MessageVesa
 /* HOST messages                                    */
 /****************************************************/
 
+class Utcb;
 class VCpu;
 typedef void (*ServiceThreadFn)(void *) REGPARM(0) NORETURN;
 typedef void (*ServicePortalFn)(void *, Utcb *) REGPARM(0);
@@ -514,18 +513,6 @@ struct MessageHostOp
       phy_cpu_no cpu;
       char const * name;
     } _alloc_service_thread;
-    struct {
-      ServicePortalFn pt;
-      void           *pt_arg;
-      unsigned        crd;
-      phy_cpu_no      cpu;
-      unsigned       *pt_out;
-    } _alloc_service_portal;
-    struct {
-      phy_cpu_no cpu;
-      Utcb     **utcb_out;
-      cap_sel    ec;            // In/Out parameter; if ~0, then a new cap will be allocated by the calee.
-    } _create_ec4pt;
   };
 
   static MessageHostOp alloc_service_thread(ServiceThreadFn work, void *arg,
@@ -536,15 +523,6 @@ struct MessageHostOp
     n._alloc_service_thread.work = work; n._alloc_service_thread.work_arg = arg;
     n._alloc_service_thread.prio = prio; n._alloc_service_thread.cpu      = cpu;
     n._alloc_service_thread.name = name;
-    return n;
-  }
-
-  static MessageHostOp alloc_service_portal(unsigned *pt_out, ServicePortalFn pt, void *pt_arg, Crd crd, phy_cpu_no cpu = ~0U)
-  {
-    MessageHostOp n(OP_ALLOC_SERVICE_PORTAL, 0UL);
-    n._alloc_service_portal.pt  = pt;  n._alloc_service_portal.pt_arg = pt_arg;
-    n._alloc_service_portal.crd = crd.value();
-    n._alloc_service_portal.cpu = cpu; n._alloc_service_portal.pt_out = pt_out;
     return n;
   }
 
@@ -569,14 +547,6 @@ struct MessageHostOp
   {
     MessageHostOp n(OP_ATTACH_IRQ, irq, !locked, cpu);
     n.desc = name;
-    return n;
-  }
-
-  static MessageHostOp create_ec4pt(cap_sel &ec, void *obj, phy_cpu_no cpu, Utcb **utcb_out) {
-    MessageHostOp n(OP_CREATE_EC4PT, obj);
-    n._create_ec4pt.ec = ec;
-    n._create_ec4pt.cpu = cpu;
-    n._create_ec4pt.utcb_out = utcb_out;
     return n;
   }
 

@@ -17,32 +17,7 @@
  */
 #pragma once
 
-void * operator new[](unsigned size, unsigned alignment);
-void * operator new(unsigned size, unsigned alignment);
-void  do_exit(const char *msg) __attribute__((noreturn));
-extern void *(*memalloc)(unsigned long size, unsigned long align);
-extern void (*memfree)(void *ptr);
-
-/* Simple malloc. Used as backend for other allocators. */
-extern void *memalloc_mempool(unsigned long size, unsigned long align);
-extern void memfree_mempool(void *ptr);
-
-
-// Not multi-threaded safe - lock by your own or use separate cap allocator -> alloc_cap/dealloc_cap in nul/capalloc.h !
-unsigned alloc_cap_region(unsigned count, unsigned align);
-void dealloc_cap_region(unsigned base, unsigned count);
-
-
-/**
- * Assert.
- */
-#ifdef NDEBUG
-#define assert(X) do {} while (0)
-#else
-#define do_string2(x) do_string(x)
-#define do_string(x) #x
-#define assert(X) do { if (!(X)) do_exit("assertion '" #X  "' failed in "  __FILE__  ":" do_string2(__LINE__) ); } while (0)
-#endif
+#include <service/assert.h>
 
 /**
  * Check whether some address is in a range.

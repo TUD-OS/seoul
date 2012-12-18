@@ -20,12 +20,9 @@
 
 /* Include stddef to get proper definition of NULL. */
 #include <stddef.h>
+#include <stdint.h>
 
 #include <nul/compiler.h>
-
-#if !defined(__i386) || !defined(__GNUC__)
-#error Your platform is not supported.
-#endif
 
 BEGIN_EXTERN_C
 #ifdef __MMX__
@@ -42,16 +39,16 @@ BEGIN_EXTERN_C
 END_EXTERN_C
 
 /* Constant-width integer types. */
-typedef unsigned long long uint64;
-typedef unsigned int       uint32;
-typedef unsigned short     uint16;
-typedef unsigned char      uint8;
-typedef unsigned long      mword;
+typedef uint64_t  uint64;
+typedef uint32_t  uint32;
+typedef uint16_t  uint16;
+typedef uint8_t   uint8;
+typedef uintptr_t mword;
 
-typedef signed long long int64;
-typedef signed int       int32;
-typedef signed short     int16;
-typedef signed char      int8;
+typedef int64_t int64;
+typedef int32_t int32;
+typedef int16_t int16;
+typedef int8_t  int8;
 
 /* NUL specific types */
 
