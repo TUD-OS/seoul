@@ -1,0 +1,4 @@
+.scons*
+*.o
+*~
+/seoul
