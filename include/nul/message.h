@@ -22,7 +22,6 @@
 
 #include <nul/types.h>
 #include <nul/compiler.h>
-#include <nul/config.h>
 
 /****************************************************/
 /* IOIO messages                                    */
@@ -738,7 +737,7 @@ struct MessageTimeout
  */
 struct MessageTime
 {
-  enum { FREQUENCY = Config::WALLCLOCK_FREQUENCY };
+  enum { FREQUENCY = 1000000U };
   timevalue wallclocktime;
   timevalue timestamp;
   MessageTime() :  wallclocktime(0), timestamp(0) {}
