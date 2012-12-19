@@ -1,5 +1,6 @@
-.scons*
+.scon*
 *.o
 *~
 /unix/seoul
 /unix/version.inc
+/unix/config.log
