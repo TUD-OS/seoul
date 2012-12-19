@@ -104,7 +104,7 @@ public:
       _entries[i]._free = false;
       return i;
     }
-    Logging::printf("can not alloc a timer!\n");
+    Logging::panic("Can't alloc a timer!\n");
     return 0;
   }
 
@@ -186,4 +186,6 @@ public:
       }
     _entries[0]._timeout = ~0ULL;
   }
+
+  TimeoutList() { init(); }
 };
