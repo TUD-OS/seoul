@@ -25,6 +25,7 @@ void Logging::panic(const char *format, ...)
   va_list ap;
   va_start(ap, format);
   ::vfprintf(stderr, format, ap);
+  ::fprintf(stderr, "\n");
   va_end(ap);
   abort();
 }
