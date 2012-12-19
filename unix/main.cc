@@ -63,9 +63,10 @@ static const char *pc_ps2[] = {
   "ioapic",
   "pcihostbridge:0,0x10,0xcf8,0xe0000000",
   "pmtimer:0x8000",
-  "vcpus",
+  // 1 vCPU
+  "vcpu", "halifax", "vbios", "lapic",
   NULL,
-};
+  };
 
 // Globals
 

@@ -21,6 +21,8 @@
 
 #pragma once
 
+#include <service/string.h>
+
 enum {
   MTD_GPR_ACDB        = 1ul << 0,
   MTD_GPR_BSD         = 1ul << 1,

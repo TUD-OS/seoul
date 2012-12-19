@@ -16,9 +16,12 @@
  * General Public License version 2 for more details.
  */
 #pragma once
-#include "nul/config.h"
+
 #include "memcache.h"
 
+enum {
+  PHYS_ADDR_SIZE = 40,
+};
 
 /**
  * A TLB implementation relying on the cache.
@@ -88,7 +91,7 @@ private:
 	  {
 	    reserved_bit = (~_paging_mode & (1<<11) && (pte & (1ULL << 63)))
 	      || ((~features & FEATURE_LONG) && features & FEATURE_PAE && (static_cast<unsigned long long>(pte) >> 52) & 0xeff)
-	      || (((static_cast<unsigned long long>(pte) & ~(1ULL << 63)) >> Config::PHYS_ADDR_SIZE) || (is_sp && (pte >> 12) & ((1<<(l*9))-1)));
+	      || (((static_cast<unsigned long long>(pte) & ~(1ULL << 63)) >> PHYS_ADDR_SIZE) || (is_sp && (pte >> 12) & ((1<<(l*9))-1)));
 	  }
 	if (reserved_bit)  PF(virt, type | 9);
       } while (l && !is_sp);
@@ -155,7 +158,7 @@ protected:
 	for (unsigned i=0; i < 4; i++)
 	  {
 	    values[i] = *reinterpret_cast<unsigned long long *>(get((READ(cr3) &~0x1f) + i*8, ~0xffful, 8, TYPE_R)->_ptr);
-	    if ((values[i] & 0x1e6) || (values[i] >> Config::PHYS_ADDR_SIZE))  GP0;
+	    if ((values[i] & 0x1e6) || (values[i] >> PHYS_ADDR_SIZE))  GP0;
 	  }
 	memcpy(_pdpt, values, sizeof(_pdpt));
       }

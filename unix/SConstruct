@@ -1,8 +1,8 @@
 # -*- Mode: Python -*-
 
 env = Environment(CPPPATH = ['../include', "include"],
-                  LINKFLAGS = '-g ',
-                  CCFLAGS = '-g -O1 -fno-strict-aliasing -Wall -Wextra -Wno-unused-parameter -Wno-parentheses',
+                  LINKFLAGS = '-m32 -g ',
+                  CCFLAGS = '-m32 -g -O1 -fno-strict-aliasing -Wall -Wextra -Wno-unused-parameter -Wno-parentheses',
                   CXXFLAGS = '-std=gnu++11 ')
 
 conf = Configure(env)
@@ -47,6 +47,7 @@ seoul = env.Program('seoul',
                      '../model/pmtimer.cc',
                      '../model/vcpu.cc',
                      '../model/vbios.cc',
+                     '../executor/halifax.cc',
                      ] +
                     Glob('*.cc'))
 

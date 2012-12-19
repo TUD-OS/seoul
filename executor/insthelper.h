@@ -54,7 +54,7 @@ int cpl0_test() {
     fault |= ~desc->ar & 0x80 || !write && ((desc->ar & 0xa) == 0x8) || write && (desc->ar & 0xa) != 0x2;
     if (fault)
       {
-	Logging::printf("%s() #%x %x+%d desc %x limit %x base %x esp %x\n", __func__, desc - &_cpu->es, virt, length, desc->ar, desc->limit, desc->base, _cpu->esp);
+	Logging::printf("%s() #%lx %x+%d desc %x limit %x base %x esp %x\n", __func__, desc - &_cpu->es, virt, length, desc->ar, desc->limit, desc->base, _cpu->esp);
 	if (desc == &_cpu->ss) {  SS0; } else { GP0; }
       }
 
@@ -603,7 +603,7 @@ int set_segment(CpuState::Descriptor *seg, unsigned short sel, bool cplcheck = t
 	  if ((is_ss && ((rpl != desc.dpl() || cplcheck && desc.dpl() != _cpu->cpl()) || ((desc.ar0 & 0x1a) != 0x12)))
 	      || !is_ss && ((((desc.ar0 ^ 0x12) & 0x1a) > 2) || (((desc.ar0 & 0xc) != 0xc) && (rpl > desc.dpl() || cplcheck && _cpu->cpl() > desc.dpl()))))
 	    {
-	      Logging::printf("set_segment %x sel %x eip %x efl %x ar %x dpl %x rpl %x cpl %x\n", seg - &_cpu->es, sel, _cpu->eip, _cpu->efl, desc.ar0, desc.dpl(), rpl, _cpu->cpl());
+	      Logging::printf("set_segment %lx sel %x eip %x efl %x ar %x dpl %x rpl %x cpl %x\n", seg - &_cpu->es, sel, _cpu->eip, _cpu->efl, desc.ar0, desc.dpl(), rpl, _cpu->cpl());
 	      GP(sel);
 	    }
 	  if (~desc.ar0 & 0x80) is_ss ? (SS(sel)) : (NP(sel));
@@ -792,7 +792,7 @@ int idt_traversal(unsigned event, unsigned error_code)
 
 	    if (!_cpu->v86())
 	      {
-		Utcb::Descriptor oldss = _cpu->ss;
+		CpuState::Descriptor oldss = _cpu->ss;
 		unsigned short new_ss;
 		unsigned new_esp;
 		if (newcpl != _cpu->cpl())
