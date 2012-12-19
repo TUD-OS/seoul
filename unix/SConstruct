@@ -34,6 +34,7 @@ seoul = env.Program('seoul',
                      '../model/ps2mouse.cc',
                      '../model/rtc146818.cc',
                      '../model/serial16550.cc',
+                     '../model/sink.cc',
                      ] +
                     Glob('*.cc'))
 
