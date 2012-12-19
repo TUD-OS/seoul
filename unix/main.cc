@@ -20,16 +20,22 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
+#include <sys/mman.h>
 
 const char version_str[] =
 #include "version.inc"
   ;
 
 
+// Configuration
+
+static char  *ram;
+static size_t ram_size = 128 << 20; // 128 MB
+
 static const char *pc_ps2[] = {
   "mem:0,0xa0000",
   "mem:0x100000",
-  "ioio",
   "nullio:0x80",
   "pic:0x20,,0x4d0",
   "pic:0xa0,2,0x4d1",
@@ -51,23 +57,68 @@ static const char *pc_ps2[] = {
   NULL,
 };
 
+static void usage()
+{
+  fprintf(stderr, "Usage: seoul [-m RAM]\n");
+  exit(EXIT_FAILURE);
+}
+
+static bool receive(Device *d, MessageHostOp &msg)
+{
+    bool res = true;
+    switch (msg.type) {
+    case MessageHostOp::OP_GUEST_MEM:
+      if (msg.value >= ram_size) {
+        msg.value = 0;
+      } else {
+        msg.len = ram_size - msg.value;
+        msg.ptr = ram      + msg.value;
+      }
+      break;
+    default:
+      Logging::panic("%s - unimplemented operation %#x\n", __PRETTY_FUNCTION__, msg.type);
+    }
+    return res;
+}
+
 int main(int argc, char **argv)
 {
-  Clock       clock(1000000);   // XXX Use correct frequency
-  Motherboard mb(&clock, NULL);
-
   printf("Seoul %s booting.\n"
          "Visit https://github.com/TUD-OS/seoul for information.\n\n",
          version_str);
 
-  printf("Modules included:\n");
+  int ch;
+  while ((ch = getopt(argc, argv, "m:")) != -1) {
+    switch (ch) {
+    case 'm':
+      ram_size = atoi(optarg) << 20;
+      break;
+    case '?':
+    default:
+      usage();
+      break;
+    }
+  }
+
+  printf("Devices included:\n");
   PARAM_ITER(p) {
     printf("\t%s\n", (*p)->name);
   }
-  printf("\n");
+  printf("\nStarting devices:\n");
+
+  Clock       clock(1000000);   // XXX Use correct frequency
+  Motherboard mb(&clock, NULL);
+
+  ram = reinterpret_cast<char *>(mmap(nullptr, ram_size, PROT_READ | PROT_WRITE,
+                                        MAP_PRIVATE | MAP_ANON, -1, 0));
+  if (ram == MAP_FAILED) {
+    perror("mmap");
+    exit(EXIT_FAILURE);
+  }
+
+  mb.bus_hostop.add(nullptr, receive);
 
   for (const char **dev = pc_ps2; *dev != NULL; dev++) {
-    printf("parsing: %s\n", *dev);
     mb.handle_arg(*dev);
   }
 
