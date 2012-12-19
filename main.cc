@@ -19,11 +19,20 @@
 #include <nul/motherboard.h>
 
 #include <stdio.h>
+#include <stdlib.h>
+
+const char version_str[] =
+#include "version.inc"
+  ;
 
 int main(int argc, char **argv)
 {
   Clock       clock(1000000);   // XXX Use correct frequency
   Motherboard mb(&clock, NULL);
+
+  printf("Seoul %s booting.\n"
+         "Visit https://github.com/TUD-OS/seoul for information.\n\n",
+         version_str);
 
   printf("Modules included:\n");
   PARAM_ITER(p) {
@@ -34,7 +43,9 @@ int main(int argc, char **argv)
   for (int i = 1; i < argc; i++)
     mb.handle_arg(argv[i]);
 
-  return 0;
+
+  printf("Terminating successfully.\n");
+  return EXIT_SUCCESS;
 }
 
 // EOF
