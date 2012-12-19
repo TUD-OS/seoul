@@ -90,79 +90,41 @@ class Motherboard : public StaticReceiver<Motherboard>
   static const char *param_separator()     { return ",+"; }
   static const char *wordparam_separator() { return ":"; }
 
-  /**
-   * Return a pointer to the next token in args and advance
-   * args. Returns the length of the token in len.
-   */
-  static const char *next_arg(const char *&args, size_t &len)
+  void handle_arg(const char *current)
   {
-    len = 0;
-    if (args[0] == 0) return 0;
-
-    len = strcspn(args, word_separator());
-    if (len == 0) {
-      args += 1;
-      return next_arg(args, len);
-    } else {
-      args += len;
-      return args - len;
-    }
+    handle_arg(current, strlen(current));
   }
 
-  void parse_args(const char *args, size_t length)
+  void handle_arg(const char *current, size_t arglen)
   {
-    char buf[length+1];
-    buf[length] = 0;
-    memcpy(buf, args, length);
-    parse_args(buf);
-  }
+    assert(arglen > 0);
 
-  /**
-   * Parse the cmdline and create devices.
-   */
-  void parse_args(const char *args)
-  {
-    const char *current;
-    size_t      arglen;
+    PARAM_ITER(param) {
+      unsigned prefixlen = MIN(strcspn(current, word_separator()),
+                               strcspn(current, wordparam_separator()));
+      if (strlen((*param)->name) == prefixlen && !memcmp(current, (*param)->name, prefixlen)) {
+        Logging::printf("\t=> %.*s <=\n", (int)arglen, current);
 
-    while ((current = next_arg(args, arglen))) {
-      assert(arglen > 0);
-
-      long *p = &__param_table_start;
-      bool handled = false;
-      while (!handled && p < &__param_table_end) {
-        typedef void  (*CreateFunction)(Motherboard *, unsigned long *argv,
-                                        const char *args, unsigned args_len);
-        CreateFunction func = reinterpret_cast<CreateFunction>(*p++);
-        char **strings = reinterpret_cast<char **>(*p++);
-
-        unsigned prefixlen = MIN(strcspn(current, word_separator()),
-                                 strcspn(current, wordparam_separator()));
-        if (strlen(strings[0]) == prefixlen && !memcmp(current, strings[0], prefixlen)) {
-          Logging::printf("\t=> %.*s <=\n", arglen, current);
-
-          const char *s = current + prefixlen;
-          if (s[0] && strcspn(current + prefixlen, wordparam_separator()) == 0) s++;
-          const char *start = s;
-          unsigned long argv[16];
-          for (unsigned j=0; j < 16; j++) {
-            unsigned alen = MIN(strcspn(s, param_separator()),
-                                strcspn(s, word_separator()));
-            if (alen)
-              argv[j] = strtoul(s, 0, 0);
-            else
-              argv[j] = ~0UL;
-            s+= alen;
-            if (s[0] && strchr(param_separator(), s[0])) s++;
-          }
-          func(this, argv, start, s - start);
-          handled = true;
+        const char *s = current + prefixlen;
+        if (s[0] && strcspn(current + prefixlen, wordparam_separator()) == 0) s++;
+        const char *start = s;
+        unsigned long argv[16];
+        for (unsigned j=0; j < 16; j++) {
+          unsigned alen = MIN(strcspn(s, param_separator()),
+                              strcspn(s, word_separator()));
+          if (alen)
+            argv[j] = strtoul(s, 0, 0);
+          else
+            argv[j] = ~0UL;
+          s+= alen;
+          if (s[0] && strchr(param_separator(), s[0])) s++;
         }
+        (*param)->func(*this, argv, start, s - start);
+        return;
       }
-      if (!handled) Logging::printf("Ignored parameter: '%.*s'\n", arglen, current);
     }
+    Logging::printf("Ignored parameter: '%.*s'\n", (int)arglen, current);
   }
-
 
   /**
    * Dump the profiling counters.
