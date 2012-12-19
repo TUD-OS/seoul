@@ -16,18 +16,15 @@
  * General Public License version 2 for more details.
  */
 
-
 #pragma once
-#include "vprintf.h"
 
-class Logging : public Vprintf
+#include <nul/types.h>
+
+class Logging
 {
-  static void (*_putcf)(void *data, int value);
-  static void *_data;
  public:
-  // debug functions
-  static void panic(const char *format, ...) __attribute__((noreturn))  __attribute__ ((format(printf, 1, 2)));
+
+  static void panic(const char *format, ...) NORETURN __attribute__ ((format(printf, 1, 2)));
   static void printf(const char *format, ...) __attribute__ ((format(printf, 1, 2)));
   static void vprintf(const char *format, va_list &ap);
-  static void init(void (*putcf)(void *, int), void *data) { _putcf = putcf; _data = data; }
 };

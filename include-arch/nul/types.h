@@ -21,6 +21,7 @@
 /* Include stddef to get proper definition of NULL. */
 #include <stddef.h>
 #include <stdint.h>
+#include <stdarg.h>
 
 #include <nul/compiler.h>
 
