@@ -24,7 +24,7 @@ void Logging::panic(const char *format, ...)
 {
   va_list ap;
   va_start(ap, format);
-  vfprintf(stderr, format, ap);
+  ::vfprintf(stderr, format, ap);
   va_end(ap);
   abort();
 }
@@ -40,7 +40,7 @@ void Logging::printf(const char *format, ...)
 
 void Logging::vprintf(const char *format, va_list &ap)
 {
-  vprintf(format, ap);
+  ::vprintf(format, ap);
 }
 
 // EOF
