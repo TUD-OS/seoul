@@ -1,33 +1,32 @@
 * Seoul
 
-*This is currently a placeholder. Please, come back later.*
+Seoul is x86 Virtual Machine Monitor including device modules and
+instruction emulator. It is a standalone version of the Vancouver VMM
+that is included in [[https://github.com/TUD-OS/NUL][NUL]] developed mainly by Bernhard Kauer
+(bk@vmmon.org) at the TU Dresden. Please direct questions regarding
+Seoul to Julian Stecklina <jsteckli@os.inf.tu-dresden.de>.
 
-A x86 Virtual Machine Monitor including device modules and instruction
-emulator. Standalone version of the Vancouver VMM, which is used in
-[[https://github.com/TUD-OS/NUL][NUL]], [[https://github.com/TUD-OS/NRE][NRE]], and [[https://github.com/genodelabs/genode][Genode]].
+This repository contains a frontend for Seoul runnable on Linux,
+FreeBSD and perhaps other UNIX-likes implemented in =main.cc= and
+=*arch/=. This frontend is currently work-in-progress and not intended
+for anything except further development.
+
+The goal is to keep this UNIX frontend only a showcase for how to get
+Seoul running on your platform. All other parts of Seoul do not invoke
+platform-specific functions on their own and should be reusable on
+most platforms without change.
+
+This repository also contains drivers developed for NUL in =host=.
 
 ** Directory Structure
 
-include/
-	service/
-		general service includes
-		Example: profile, logging, assert, stdlib, string
-		Dependencies: stdarg.h
-	nul/
-	        NUL environment
-	        the motherboard, bus and message interface
-	        everything what NUL programs need
-	sigma0/
-		the sigma0 interface
-	host/
-		host drivers and shared includes
-	model/
-		model support headers
-	executor/
-		public executor interface
-host/
-	host drivers
-model/
-	device models
-executors/
-	cpu model and instruction emulator
+ - include/
+   - service/ :: general service includes
+   - nul/ :: NUL environment (leftovers from NUL past), the motherboard, bus and message interface, everything what NUL programs needs
+   - host/ :: host drivers and shared includes
+   - model/ :: model support headers
+   - executor/ :: public executor interface
+ - host/ :: host drivers
+ - model/ :: device models
+ - executors/ :: cpu model and instruction emulator
+
