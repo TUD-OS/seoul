@@ -1,5 +1,5 @@
 .scons*
 *.o
 *~
-/seoul
-/version.inc
+/unix/seoul
+/unix/version.inc
