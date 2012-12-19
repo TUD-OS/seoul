@@ -150,8 +150,9 @@ class VirtualCpu : public VCpu, public StaticReceiver<VirtualCpu>
     // http://www.sandpile.org/ia32/initial.htm
     // XXX Review initial settings of {tr,ld,gd,id}.ar
 
-    // this also clears inj_info
-    memset(cpu->msg, 0, sizeof(cpu->msg));
+    // Set all register values to zero. This also clears inj_info.
+    cpu->clear();
+
     cpu->efl      = 2;
     cpu->eip      = 0xfff0;
     cpu->cr0      = 0x10;

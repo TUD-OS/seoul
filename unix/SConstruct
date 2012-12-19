@@ -35,6 +35,18 @@ seoul = env.Program('seoul',
                      '../model/rtc146818.cc',
                      '../model/serial16550.cc',
                      '../model/sink.cc',
+                     '../model/vga.cc',
+                     '../executor/vbios_disk.cc',
+                     '../executor/vbios_keyboard.cc',
+                     '../executor/vbios_mem.cc',
+                     '../executor/vbios_multiboot.cc',
+                     '../executor/vbios_reset.cc',
+                     '../executor/vbios_time.cc',
+                     '../model/ioapic.cc',
+                     '../model/pcihostbridge.cc',
+                     '../model/pmtimer.cc',
+                     '../model/vcpu.cc',
+                     '../model/vbios.cc',
                      ] +
                     Glob('*.cc'))
 

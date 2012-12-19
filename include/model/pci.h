@@ -24,7 +24,7 @@ class PciHelper
 public:
   static unsigned find_free_bdf(DBus<MessagePciConfig> &bus_pcicfg, unsigned bdf)
   {
-    if (bdf == ~0ul)
+    if (bdf == ~0u)
     {
       for (unsigned bus = 0; bus < 256; bus++)
 	for (unsigned device = 1; device < 32; device++)
@@ -32,7 +32,7 @@ public:
 	    bdf = (bus << 8) | (device << 3);
 	    MessagePciConfig msg(bdf, 0);
 	    bus_pcicfg.send(msg, false);
-	    if (msg.value == ~0ul) return bdf;
+	    if (msg.value == ~0u) return bdf;
 	  }
     }
     return bdf;

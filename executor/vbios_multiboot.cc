@@ -169,7 +169,8 @@ private:
     unsigned long rip = 0xfffffff0;
     unsigned long mbi;
     if (!(mbi = init_mbi(rip)))  return false;
-    memset(msg.cpu->msg, 0, sizeof(msg.cpu->msg));
+
+    msg.cpu->clear();
     msg.cpu->eip      = rip;
     msg.cpu->eax      = 0x2badb002;
     msg.cpu->ebx      = mbi;

@@ -16,13 +16,13 @@
  * General Public License version 2 for more details.
  */
 #pragma once
-#include "sys/utcb.h"
+#include "executor/archcpustate.h"
 #include "service/cpu.h"
 
 /**
  * A generic cpu state class.
  */
-class CpuState : public Utcb
+class CpuState : public ArchCpuState
 {
  public:
   unsigned cpl()   { return (ss.ar >> 5) & 3; }

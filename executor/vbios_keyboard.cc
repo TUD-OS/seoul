@@ -280,7 +280,7 @@ public:
     _hostmb->bus_hwioout.add(this, receive_static<MessageHwIOOut>);
     _mb.bus_bios        .add(this, receive_static<MessageBios>);
     _mb.bus_discovery   .add(this, receive_static<MessageDiscovery>);
-    _hostmb->parse_args("hostkeyb:0x10,0x60,1,,1");
+    _hostmb->handle_arg("hostkeyb:0x10,0x60,1,,1");
 
 
   }
