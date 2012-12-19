@@ -16,10 +16,23 @@
  * General Public License version 2 for more details.
  */
 
+#include <nul/motherboard.h>
 
-int main()
+#include <stdio.h>
+
+int main(int argc, char **argv)
 {
+  Clock       clock(1000000);   // XXX Use correct frequency
+  Motherboard mb(&clock, NULL);
 
+  printf("Modules included:\n");
+  PARAM_ITER(p) {
+    printf("\t%s\n", (*p)->name);
+  }
+  printf("\n");
+
+  for (int i = 1; i < argc; i++)
+    mb.handle_arg(argv[i]);
 
   return 0;
 }
