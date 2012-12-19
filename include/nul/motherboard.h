@@ -45,7 +45,7 @@ class Motherboard : public StaticReceiver<Motherboard>
   /**
    * To avoid bugs we disallow the copy constructor.
    */
-  Motherboard(const Motherboard &bus) { Logging::panic("%s copy constructor called", __func__); }
+  Motherboard(const Motherboard &) { Logging::panic("%s copy constructor called", __func__); }
 
  public:
   DBus<MessageAcpi>         bus_acpi;
