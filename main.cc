@@ -25,6 +25,32 @@ const char version_str[] =
 #include "version.inc"
   ;
 
+
+static const char *pc_ps2[] = {
+  "mem:0,0xa0000",
+  "mem:0x100000",
+  "ioio",
+  "nullio:0x80",
+  "pic:0x20,,0x4d0",
+  "pic:0xa0,2,0x4d1",
+  "pit:0x40,0",
+  "scp:0x92,0x61",
+  "kbc:0x60,1,12",
+  "keyb:0,0x10000",
+  "mouse:1,0x10001",
+  "rtc:0x70,8",
+  "serial:0x3f8,0x4,0x4711",
+  "hostsink:0x4712,80",
+  "vga:0x03c0",
+  "vbios_disk", "vbios_keyboard", "vbios_mem", "vbios_time", "vbios_reset", "vbios_multiboot",
+  "msi",
+  "ioapic",
+  "pcihostbridge:0,0x10,0xcf8,0xe0000000",
+  "pmtimer:0x8000",
+  "vcpus",
+  NULL,
+};
+
 int main(int argc, char **argv)
 {
   Clock       clock(1000000);   // XXX Use correct frequency
@@ -40,11 +66,16 @@ int main(int argc, char **argv)
   }
   printf("\n");
 
-  for (int i = 1; i < argc; i++)
-    mb.handle_arg(argv[i]);
+  for (const char **dev = pc_ps2; *dev != NULL; dev++) {
+    printf("parsing: %s\n", *dev);
+    mb.handle_arg(*dev);
+  }
 
+  printf("Devices started successfully.\n");
 
-  printf("Terminating successfully.\n");
+  // TODO: Emulate!
+
+  printf("Terminating.\n");
   return EXIT_SUCCESS;
 }
 
