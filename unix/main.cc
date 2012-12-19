@@ -16,17 +16,26 @@
  * General Public License version 2 for more details.
  */
 
+/**
+ * Parts of this file are derived from the original Vancouver
+ * implementation in NUL, which is:
+ *
+ * Copyright (C) 2007-2010, Bernhard Kauer <bk@vmmon.org>
+ * Economic rights: Technische Universitaet Dresden (Germany)
+ */
+
 #include <nul/motherboard.h>
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/mman.h>
+#include <time.h>
+#include <signal.h>
 
 const char version_str[] =
 #include "version.inc"
   ;
-
 
 // Configuration
 
@@ -57,13 +66,23 @@ static const char *pc_ps2[] = {
   NULL,
 };
 
+// Globals
+
+static TimeoutList<32, void> timeouts;
+static timevalue             last_to = ~0ULL;
+static timer_t               timer_id;
+
+
+static Clock                 mb_clock(1000000);   // XXX Use correct frequency
+static Motherboard           mb(&mb_clock, NULL);
+
 static void usage()
 {
   fprintf(stderr, "Usage: seoul [-m RAM]\n");
   exit(EXIT_FAILURE);
 }
 
-static bool receive(Device *d, MessageHostOp &msg)
+static bool receive(Device *, MessageHostOp &msg)
 {
     bool res = true;
     switch (msg.type) {
@@ -80,6 +99,46 @@ static bool receive(Device *d, MessageHostOp &msg)
     }
     return res;
 }
+
+// Update or program pending timeout.
+static void timeout_request()
+{
+  if (timeouts.timeout() != ~0ULL) {
+    timevalue next_to = timeouts.timeout();
+    if (next_to != last_to) {
+      last_to = next_to;
+
+      unsigned long long delta = mb_clock.delta(next_to, 1000000000UL);
+
+      printf("Programming timer for %lluns.\n", delta);
+
+      struct itimerspec t = {
+        .it_interval = {0, 0},
+        .it_value = {long(delta / 1000000000L), (long)(delta % 1000000000L)}
+      };
+      int res = timer_settime(timer_id, 0, &t, NULL);
+      assert(!res);
+    }
+  }
+}
+
+static bool receive(Device *, MessageTimer &msg)
+{
+  switch (msg.type)
+    {
+    case MessageTimer::TIMER_NEW:
+      msg.nr = timeouts.alloc();
+      return true;
+    case MessageTimer::TIMER_REQUEST_TIMEOUT:
+      timeouts.request(msg.nr, msg.abstime);
+      timeout_request();
+      break;
+    default:
+      return false;
+    }
+  return true;
+}
+
 
 int main(int argc, char **argv)
 {
@@ -106,17 +165,28 @@ int main(int argc, char **argv)
   }
   printf("\nStarting devices:\n");
 
-  Clock       clock(1000000);   // XXX Use correct frequency
-  Motherboard mb(&clock, NULL);
+  // Allocating RAM.
 
   ram = reinterpret_cast<char *>(mmap(nullptr, ram_size, PROT_READ | PROT_WRITE,
                                         MAP_PRIVATE | MAP_ANON, -1, 0));
   if (ram == MAP_FAILED) {
     perror("mmap");
-    exit(EXIT_FAILURE);
+    return EXIT_FAILURE;
   }
 
+  // Creating timer. I hate C++: No useful initializers...
+  struct sigevent ev;
+  ev.sigev_notify = SIGEV_SIGNAL;
+  ev.sigev_signo  = SIGALRM;
+
+  if (0 != timer_create(CLOCK_MONOTONIC, &ev, &timer_id)) {
+    perror("timer_create");
+    return EXIT_FAILURE;
+  }
+
+
   mb.bus_hostop.add(nullptr, receive);
+  mb.bus_timer .add(nullptr, receive);
 
   for (const char **dev = pc_ps2; *dev != NULL; dev++) {
     mb.handle_arg(*dev);

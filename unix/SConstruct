@@ -2,15 +2,32 @@
 
 env = Environment(CPPPATH = ['../include', "include"],
                   LINKFLAGS = '-g ',
-                  CCFLAGS = '-g -O2 -fno-strict-aliasing -Wall -Wextra -Wno-unused-parameter ',
+                  CCFLAGS = '-g -O1 -fno-strict-aliasing -Wall -Wextra -Wno-unused-parameter -Wno-parentheses',
                   CXXFLAGS = '-std=gnu++11 ')
+
+conf = Configure(env)
+
+# Link with rt library when needed.
+if not conf.CheckFunc('timer_create'):
+    if conf.CheckLib('rt'):
+        conf.env.Append(LINKFLAGS = '-lrt ')
+        if not conf.CheckFunc('timer_create'):
+            print ("POSIX timer API seems broken.")
+            Exit(1)
+    else:
+            print ("POSIX timer API where art though?")
+            Exit(1)
+env = conf.Finish()
 
 AlwaysBuild(Command('version.inc', [], """( git describe --dirty --long --always || echo UNKNOWN ) | sed 's/^\\(.*\\)$/"\\1"/' > $TARGET"""))
 
 
 seoul = env.Program('seoul',
                     [
+                     '../model/memorycontroller.cc',
                      '../model/nullio.cc',
+                     '../model/pic8259.cc',
+                     '../model/pit8254.cc',
                      ] +
                     Glob('*.cc'))
 
