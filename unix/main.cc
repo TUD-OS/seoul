@@ -30,6 +30,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/mman.h>
+#include <sys/time.h>
 #include <time.h>
 #include <signal.h>
 
@@ -139,6 +140,16 @@ static bool receive(Device *, MessageTimer &msg)
   return true;
 }
 
+static bool receive(Device *, MessageTime &msg)
+{
+  struct timeval tv;
+  gettimeofday(&tv, NULL);
+  msg.timestamp = mb_clock.clock(MessageTime::FREQUENCY);
+
+  assert(MessageTime::FREQUENCY == 1000000U);
+  msg.wallclocktime = (uint64)tv.tv_sec * 1000000 + tv.tv_usec;
+  return true;
+}
 
 int main(int argc, char **argv)
 {
@@ -187,6 +198,7 @@ int main(int argc, char **argv)
 
   mb.bus_hostop.add(nullptr, receive);
   mb.bus_timer .add(nullptr, receive);
+  mb.bus_time  .add(nullptr, receive);
 
   for (const char **dev = pc_ps2; *dev != NULL; dev++) {
     mb.handle_arg(*dev);

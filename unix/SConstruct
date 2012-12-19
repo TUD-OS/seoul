@@ -28,6 +28,11 @@ seoul = env.Program('seoul',
                      '../model/nullio.cc',
                      '../model/pic8259.cc',
                      '../model/pit8254.cc',
+                     '../model/sysctrlport.cc',
+                     '../model/keyboardcontroller.cc',
+                     '../model/ps2keyboard.cc',
+                     '../model/ps2mouse.cc',
+                     '../model/rtc146818.cc',
                      ] +
                     Glob('*.cc'))
 
