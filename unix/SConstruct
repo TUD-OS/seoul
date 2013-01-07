@@ -47,6 +47,7 @@ seoul = env.Program('seoul',
                      '../model/pmtimer.cc',
                      '../model/vcpu.cc',
                      '../model/vbios.cc',
+                     '../model/lapic.cc',
                      '../executor/halifax.cc',
                      ] +
                     Glob('*.cc'))

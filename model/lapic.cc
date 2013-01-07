@@ -17,6 +17,7 @@
  */
 
 #ifndef REGBASE
+#include "model/config.h"
 #include "nul/motherboard.h"
 #include "nul/vcpu.h"
 
@@ -114,7 +115,7 @@ private:
    * Update the APIC base MSR.
    */
   bool set_base_msr(unsigned long long value) {
-    const unsigned long long mask = ((1ull << (Config::PHYS_ADDR_SIZE)) - 1) &  ~0x2ffull;
+    const unsigned long long mask = ((1ull << (PHYS_ADDR_SIZE)) - 1) &  ~0x2ffull;
     bool was_x2apic_mode = x2apic_mode();
 
     // check reserved bits and invalid state transitions

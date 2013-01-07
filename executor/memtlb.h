@@ -17,11 +17,8 @@
  */
 #pragma once
 
+#include "model/config.h"
 #include "memcache.h"
-
-enum {
-  PHYS_ADDR_SIZE = 40,
-};
 
 /**
  * A TLB implementation relying on the cache.
