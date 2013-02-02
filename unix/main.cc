@@ -96,6 +96,14 @@ static bool receive(Device *, MessageHostOp &msg)
         msg.ptr = ram      + msg.value;
       }
       break;
+    case MessageHostOp::OP_ALLOC_FROM_GUEST:
+      assert((msg.value & 0xFFF) == 0);
+      if (msg.value <= ram_size) {
+        ram_size -= msg.value;
+        msg.phys  = ram_size;
+        Logging::printf("Allocating from guest %08zx+%lx\n", ram_size, msg.value);
+      } else res = false;
+      break;
     default:
       Logging::panic("%s - unimplemented operation %#x\n", __PRETTY_FUNCTION__, msg.type);
     }
