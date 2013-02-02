@@ -130,7 +130,7 @@ class Motherboard : public StaticReceiver<Motherboard>
    */
   void dump_counters(bool full = false)
   {
-    static timevalue orig_time;
+    static timevalue orig_time UNUSED;
     timevalue t = _clock->clock(1000);
     COUNTER_SET("Time", t - orig_time);
     orig_time = t;

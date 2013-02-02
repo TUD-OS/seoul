@@ -54,7 +54,7 @@ int cpl0_test() {
     fault |= ~desc->ar & 0x80 || !write && ((desc->ar & 0xa) == 0x8) || write && (desc->ar & 0xa) != 0x2;
     if (fault)
       {
-	Logging::printf("%s() #%lx %x+%d desc %x limit %x base %x esp %x\n", __func__, desc - &_cpu->es, virt, length, desc->ar, desc->limit, desc->base, _cpu->esp);
+	Logging::printf("%s() #%x %x+%d desc %x limit %x base %x esp %x\n", __func__, desc - &_cpu->es, virt, length, desc->ar, desc->limit, desc->base, _cpu->esp);
 	if (desc == &_cpu->ss) {  SS0; } else { GP0; }
       }
 
@@ -129,7 +129,7 @@ int helper_INTO() {  _oeip = _cpu->eip; _mtr_out |= MTD_RIP_LEN; if (_cpu->efl &
   template<unsigned operand_size>
   int __attribute__((regparm(3))) __attribute__((noinline))  helper_PUSH(void *tmp_src)
   {
-    void *res;
+    void *res = nullptr;
     unsigned length = 1 << operand_size;
     unsigned virt = _cpu->esp - length;
     if (!logical_mem<operand_size>(&_cpu->ss, virt, true, res, true))
@@ -145,7 +145,7 @@ int helper_INTO() {  _oeip = _cpu->eip; _mtr_out |= MTD_RIP_LEN; if (_cpu->efl &
   template<unsigned operand_size>
   int __attribute__((regparm(3)))  __attribute__((noinline)) helper_POP(void *tmp_dst)
   {
-    void *res;
+    void *res = nullptr;
     unsigned virt = _cpu->esp;
     if (!logical_mem<operand_size>(&_cpu->ss, virt, false, res, true))
       move<operand_size>(tmp_dst, res);
@@ -500,7 +500,7 @@ int load_idt_descriptor(Descriptor &desc, unsigned event)
   unsigned error = ofs | (ext ? 2 : 3);
 
   if (_cpu->id.limit < (ofs | 7)) GP(error);
-  void *res;
+  void *res = nullptr;
   if (!prepare_virtual(_cpu->id.base + ofs, 8, MemTlb::TYPE_R, res)) {
     memcpy(desc.values, res, 8);
     // is it a trap, intr or task-gate?
@@ -521,7 +521,7 @@ int desc_set_flag(Descriptor &desc, unsigned short selector, unsigned char flag,
   desc.ar0 |= flag;
 
   unsigned long base;
-  void *res;
+  void *res = nullptr;
   if (!desc_get_base(selector, base, ext) && !prepare_virtual(base, 8, MemTlb::TYPE_RMW, res))
     // do a fire and forget cmpxchg here
     asm volatile ("lock; cmpxchg8b (%4)" : "+a"(desc2.values[0]), "+d"(desc2.values[1]) :  "b"(desc.values[0]), "c"(desc.values[1]), "r"(res) : "memory", "cc");
@@ -603,7 +603,7 @@ int set_segment(CpuState::Descriptor *seg, unsigned short sel, bool cplcheck = t
 	  if ((is_ss && ((rpl != desc.dpl() || cplcheck && desc.dpl() != _cpu->cpl()) || ((desc.ar0 & 0x1a) != 0x12)))
 	      || !is_ss && ((((desc.ar0 ^ 0x12) & 0x1a) > 2) || (((desc.ar0 & 0xc) != 0xc) && (rpl > desc.dpl() || cplcheck && _cpu->cpl() > desc.dpl()))))
 	    {
-	      Logging::printf("set_segment %lx sel %x eip %x efl %x ar %x dpl %x rpl %x cpl %x\n", seg - &_cpu->es, sel, _cpu->eip, _cpu->efl, desc.ar0, desc.dpl(), rpl, _cpu->cpl());
+	      Logging::printf("set_segment %x sel %x eip %x efl %x ar %x dpl %x rpl %x cpl %x\n", seg - &_cpu->es, sel, _cpu->eip, _cpu->efl, desc.ar0, desc.dpl(), rpl, _cpu->cpl());
 	      GP(sel);
 	    }
 	  if (~desc.ar0 & 0x80) is_ss ? (SS(sel)) : (NP(sel));
@@ -754,7 +754,7 @@ int idt_traversal(unsigned event, unsigned error_code)
   // realmode
   if (!_cpu->pm())
     {
-      void *res;
+      void *res = nullptr;
       unsigned ofs = (event & 0xff) << 2;
       unsigned idt;
       if (prepare_virtual(_cpu->id.base + ofs, 4, MemTlb::TYPE_R, res))  return _fault;
