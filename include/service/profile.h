@@ -2,7 +2,7 @@
  * Profiling support.
  *
  * Copyright (C) 2007-2010, Bernhard Kauer <bk@vmmon.org>
- * Economic rights: Technische Universitaet Dresden (Germa
+ * Economic rights: Technische Universitaet Dresden (Germany)
  *
  * This file is part of Vancouver.
  *
@@ -18,8 +18,12 @@
 
 #pragma once
 
-#define PVAR  ".long"
-#define COUNTER_INC(NAME)						\
+// Profiling counters need a custom linker script. If you have that,
+// you can enable -DPROFILE to get these counters.
+
+#ifdef PROFILE
+# define PVAR  ".long"
+# define COUNTER_INC(NAME)						\
   ({									\
     asm volatile (".section .data; 1: .string \"" NAME "\";.previous;"	\
                   ".section .profile; " PVAR " 1b; 2: " PVAR " 0,0;.previous;" \
@@ -27,9 +31,14 @@
   })
 
 
-#define COUNTER_SET(NAME, VALUE)					\
+# define COUNTER_SET(NAME, VALUE)					\
   {									\
     asm volatile (".section .data; 1: .string \"" NAME "\";.previous;"	\
 		  ".section .profile; "  PVAR " 1b; 2: " PVAR " 0,0;.previous;" \
 		  "mov %0,2b" : : "r"(static_cast<long>(VALUE)));	\
   }
+
+#else
+# define COUNTER_INC(NAME)        do {} while (0)
+# define COUNTER_SET(NAME, VALUE) do {} while (0)
+#endif
