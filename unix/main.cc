@@ -25,6 +25,8 @@
  */
 
 #include <nul/motherboard.h>
+#include <nul/vcpu.h>
+#include <service/profile.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -78,12 +80,6 @@ static timer_t               timer_id;
 static Clock                 mb_clock(1000000);   // XXX Use correct frequency
 static Motherboard           mb(&mb_clock, NULL);
 
-static void usage()
-{
-  fprintf(stderr, "Usage: seoul [-m RAM]\n");
-  exit(EXIT_FAILURE);
-}
-
 static bool receive(Device *, MessageHostOp &msg)
 {
     bool res = true;
@@ -104,8 +100,13 @@ static bool receive(Device *, MessageHostOp &msg)
         Logging::printf("Allocating from guest %08zx+%lx\n", ram_size, msg.value);
       } else res = false;
       break;
+    case MessageHostOp::OP_VCPU_CREATE_BACKEND:
+      Logging::printf("host: VCPU_CREATE_BACKEND not implemented\n");
+      msg.value = 0;
+      break;
     default:
-      Logging::panic("%s - unimplemented operation %#x\n", __PRETTY_FUNCTION__, msg.type);
+      Logging::panic("%s - unimplemented operation %#x\n",
+                       __PRETTY_FUNCTION__, msg.type);
     }
     return res;
 }
@@ -160,6 +161,38 @@ static bool receive(Device *, MessageTime &msg)
   return true;
 }
 
+static unsigned num_views = 0;
+
+static bool receive(Device *, MessageConsole &msg)
+{
+  switch (msg.type)
+    {
+    case MessageConsole::TYPE_ALLOC_CLIENT:
+      Logging::panic("console: ALLOC_CLIENT not supported.\n");
+    case MessageConsole::TYPE_ALLOC_VIEW:
+      assert(msg.ptr and msg.regs);
+      msg.view = num_views++;
+      Logging::printf("console: ALLOC_VIEW not implemented.\n");
+      return true;
+    case MessageConsole::TYPE_GET_MODEINFO:
+    case MessageConsole::TYPE_GET_FONT:
+    case MessageConsole::TYPE_KEY:
+    case MessageConsole::TYPE_RESET:
+    case MessageConsole::TYPE_START:
+    case MessageConsole::TYPE_KILL:
+    case MessageConsole::TYPE_DEBUG:
+    default:
+      break;
+    }
+  return false;
+}
+
+static void usage()
+{
+  fprintf(stderr, "Usage: seoul [-m RAM]\n");
+  exit(EXIT_FAILURE);
+}
+
 int main(int argc, char **argv)
 {
   printf("Seoul %s booting.\n"
@@ -205,10 +238,12 @@ int main(int argc, char **argv)
   }
 
 
-  mb.bus_hostop.add(nullptr, receive);
-  mb.bus_timer .add(nullptr, receive);
-  mb.bus_time  .add(nullptr, receive);
+  mb.bus_hostop .add(nullptr, receive);
+  mb.bus_timer  .add(nullptr, receive);
+  mb.bus_time   .add(nullptr, receive);
+  mb.bus_console.add(nullptr, receive);
 
+  // Create standard PC
   for (const char **dev = pc_ps2; *dev != NULL; dev++) {
     mb.handle_arg(*dev);
   }

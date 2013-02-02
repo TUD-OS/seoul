@@ -49,6 +49,7 @@ seoul = env.Program('seoul',
                      '../model/vbios.cc',
                      '../model/lapic.cc',
                      '../executor/halifax.cc',
+                     '../host/hostkeyboard.cc',
                      ] +
                     Glob('*.cc'))
 
