@@ -36,6 +36,9 @@
 #include <time.h>
 #include <signal.h>
 
+#include <pthread.h>
+#include <semaphore.h>
+
 const char version_str[] =
 #include "version.inc"
   ;
@@ -80,6 +83,89 @@ static timer_t               timer_id;
 static Clock                 mb_clock(1000000);   // XXX Use correct frequency
 static Motherboard           mb(&mb_clock, NULL);
 
+// Used to serialize all operations (for now)
+static sem_t                 vcpu_sem;
+
+static void skip_instruction(CpuMessage &msg)
+{
+  // advance EIP
+  assert(msg.mtr_in & MTD_RIP_LEN);
+  msg.cpu->eip += msg.cpu->inst_len;
+  msg.mtr_out |= MTD_RIP_LEN;
+
+  // cancel sti and mov-ss blocking as we emulated an instruction
+  assert(msg.mtr_in & MTD_STATE);
+  if (msg.cpu->intr_state & 3) {
+    msg.cpu->intr_state &= ~3;
+    msg.mtr_out |= MTD_STATE;
+  }
+}
+
+
+static void handle_vcpu(bool skip, CpuMessage::Type type, VCpu *vcpu, CpuState *utcb)
+{
+  assert(vcpu);
+  CpuMessage msg(type, static_cast<CpuState *>(utcb), utcb->mtd);
+  msg.mtr_in = ~0U;
+  if (skip) skip_instruction(msg);
+
+  /**
+   * Send the message to the VCpu.
+   */
+  if (!vcpu->executor.send(msg, true))
+    Logging::panic("nobody to execute %s at %x:%x\n", __func__, msg.cpu->cs.sel, msg.cpu->eip);
+
+  /**
+   * Check whether we should inject something...
+   */
+  if (msg.mtr_in & MTD_INJ && msg.type != CpuMessage::TYPE_CHECK_IRQ) {
+    msg.type = CpuMessage::TYPE_CHECK_IRQ;
+    if (!vcpu->executor.send(msg, true))
+      Logging::panic("nobody to execute %s at %x:%x\n", __func__, msg.cpu->cs.sel, msg.cpu->eip);
+  }
+
+  /**
+   * If the IRQ injection is performed, recalc the IRQ window.
+   */
+  if (msg.mtr_out & MTD_INJ) {
+    vcpu->inj_count ++;
+
+    msg.type = CpuMessage::TYPE_CALC_IRQWINDOW;
+    if (!vcpu->executor.send(msg, true))
+      Logging::panic("nobody to execute %s at %x:%x\n", __func__, msg.cpu->cs.sel, msg.cpu->eip);
+  }
+  msg.cpu->mtd = msg.mtr_out;
+
+}
+
+
+static void *vcpu_thread_fn(void *arg)
+{
+  VCpu * vcpu = static_cast<VCpu *>(arg);
+  CpuState cpu_state;
+  memset(&cpu_state, 0, sizeof(cpu_state));
+
+  handle_vcpu(false, CpuMessage::TYPE_HLT, vcpu, &cpu_state);
+
+  while (true) {
+    sem_wait(&vcpu_sem);
+    handle_vcpu(false, CpuMessage::TYPE_SINGLE_STEP, vcpu, &cpu_state);
+    sem_post(&vcpu_sem);
+  }
+
+  // NOTREACHED
+  return NULL;
+}
+
+#define MAX_VCPU 4
+static struct {
+  pthread_t tid;
+  sem_t     block;
+  bool      recall_pending;
+} vcpu_info[MAX_VCPU];
+
+static unsigned vcpu_no = 0;
+
 static bool receive(Device *, MessageHostOp &msg)
 {
     bool res = true;
@@ -100,9 +186,32 @@ static bool receive(Device *, MessageHostOp &msg)
         Logging::printf("Allocating from guest %08zx+%lx\n", ram_size, msg.value);
       } else res = false;
       break;
-    case MessageHostOp::OP_VCPU_CREATE_BACKEND:
-      Logging::printf("host: VCPU_CREATE_BACKEND not implemented\n");
-      msg.value = 0;
+    case MessageHostOp::OP_VCPU_CREATE_BACKEND: {
+      msg.value = vcpu_no;
+
+      if ((0 != sem_init(&vcpu_info[vcpu_no].block, 0, 0)) or
+          (0 != pthread_create(&vcpu_info[vcpu_no].tid, NULL, vcpu_thread_fn, msg.vcpu))) {
+        perror("sem_init/pthread_create");
+        res = false;
+        break;
+      }
+      vcpu_info[vcpu_no].recall_pending = false;
+      vcpu_no ++;
+      break;
+    }
+    case MessageHostOp::OP_VCPU_BLOCK:
+      sem_post(&vcpu_sem);
+      sem_wait(&vcpu_info[msg.value].block);
+      sem_wait(&vcpu_sem);
+      break;
+    case MessageHostOp::OP_VCPU_RELEASE:
+      vcpu_info[msg.value].recall_pending = true;
+      asm volatile ("" ::: "memory");
+      sem_post(&vcpu_info[msg.value].block);
+      break;
+    case MessageHostOp::OP_GET_MODULE:
+      printf("host: Multiboot modules not implemented.\n");
+      res = false;
       break;
     default:
       Logging::panic("%s - unimplemented operation %#x\n",
@@ -243,14 +352,50 @@ int main(int argc, char **argv)
   mb.bus_time   .add(nullptr, receive);
   mb.bus_console.add(nullptr, receive);
 
+  // Synchronization initialization
+  if (0 != sem_init(&vcpu_sem, 0, 0)) {
+    perror("sem_init");
+    return EXIT_FAILURE;
+  }
+
   // Create standard PC
   for (const char **dev = pc_ps2; *dev != NULL; dev++) {
     mb.handle_arg(*dev);
   }
 
-  printf("Devices started successfully.\n");
+  printf("Devices and %u virtual CPU%s started successfully.\n",
+         vcpu_no, vcpu_no == 1 ? "" : "s");
 
-  // TODO: Emulate!
+  // init VCPUs
+  for (VCpu *vcpu = mb.last_vcpu; vcpu; vcpu=vcpu->get_last()) {
+    printf("Initializing virtual CPU %p.\n", vcpu);
+
+    // init CPU strings
+    static const char *short_name = "NOVA microHV";
+    vcpu->set_cpuid(0, 1, reinterpret_cast<const unsigned *>(short_name)[0]);
+    vcpu->set_cpuid(0, 3, reinterpret_cast<const unsigned *>(short_name)[1]);
+    vcpu->set_cpuid(0, 2, reinterpret_cast<const unsigned *>(short_name)[2]);
+    static const char *long_name = "Vancouver VMM proudly presents this VirtualCPU. ";
+    for (unsigned i=0; i<12; i++)
+      vcpu->set_cpuid(0x80000002 + (i / 4), i % 4, reinterpret_cast<const unsigned *>(long_name)[i]);
+
+    // propagate feature flags from the host
+    unsigned ebx_1=0, ecx_1=0, edx_1=0;
+    Cpu::cpuid(1, ebx_1, ecx_1, edx_1);
+    vcpu->set_cpuid(1, 1, ebx_1 & 0xff00, 0xff00ff00); // clflush size
+    vcpu->set_cpuid(1, 2, ecx_1, 0x00000201); // +SSE3,+SSSE3
+    vcpu->set_cpuid(1, 3, edx_1, 0x0f80a9bf | (1 << 28)); // -PAE,-PSE36, -MTRR,+MMX,+SSE,+SSE2,+SEP
+  }
+
+  Logging::printf("RESET device state\n");
+  MessageLegacy msg2(MessageLegacy::RESET, 0);
+  mb.bus_legacy.send_fifo(msg2);
+
+  sem_post(&vcpu_sem);
+
+  for (unsigned i = 0; i < vcpu_no; i++)
+    if (0 != pthread_join(vcpu_info[i].tid, NULL))
+      perror("pthread_join");
 
   printf("Terminating.\n");
   return EXIT_SUCCESS;
