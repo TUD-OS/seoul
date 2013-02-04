@@ -273,7 +273,7 @@ def print_code(code, functions):
     print "return _fault; }"
 
 
-FILE="foo.keep"
+FILE="build_instructions.cache"
 try:
     fdict = dict(map(lambda x: x[:-1].split("#"), open(FILE, "r").readlines()))
 except:

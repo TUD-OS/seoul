@@ -21,6 +21,8 @@ env = conf.Finish()
 AlwaysBuild(Command('version.inc', [], """( git describe --dirty --long --always || echo UNKNOWN ) | sed 's/^\\(.*\\)$/"\\1"/' > $TARGET"""))
 
 
+Precious(env.Command(["../executor/instructions.inc"], ["../executor/build_instructions.py"], "$SOURCE > $TARGET"))
+
 seoul = env.Program('seoul',
                     [
                      '../model/memorycontroller.cc',
