@@ -22,6 +22,11 @@ This repository also contains drivers developed for NUL in =host=.
 
 Execute =scons= in =unix/=.
 
+** Starting a VM
+
+We currently only support booting Multiboot compliant kernels. Execute
+=seoul -h= to get usage information.
+
 ** Directory Structure
 
  - include/

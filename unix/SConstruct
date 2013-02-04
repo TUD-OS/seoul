@@ -3,7 +3,7 @@
 env = Environment(CPPPATH = ['../include', "include"],
                   LINKFLAGS = '-m32 -g -pthread ',
                   CCFLAGS = '-m32 -g -O1 -fno-strict-aliasing -Wall -Wextra -Wno-unused-parameter -Wno-parentheses -pthread',
-                  CXXFLAGS = '-std=gnu++11 ')
+                  CXXFLAGS = '-std=gnu++11 -fno-rtti -fno-exceptions')
 
 conf = Configure(env)
 
@@ -15,7 +15,7 @@ if not conf.CheckFunc('timer_create'):
             print ("POSIX timer API seems broken.")
             Exit(1)
     else:
-            print ("POSIX timer API where art though?")
+            print ("POSIX timer API where art thou?")
             Exit(1)
 env = conf.Finish()
 

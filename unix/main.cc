@@ -33,11 +33,17 @@
 #include <unistd.h>
 #include <sys/mman.h>
 #include <sys/time.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <time.h>
 #include <signal.h>
+#include <fcntl.h>
+#include <errno.h>
 
 #include <pthread.h>
 #include <semaphore.h>
+
+#include <vector>
 
 const char version_str[] =
 #include "version.inc"
@@ -82,6 +88,39 @@ static timer_t               timer_id;
 
 static Clock                 mb_clock(1000000);   // XXX Use correct frequency
 static Motherboard           mb(&mb_clock, NULL);
+
+struct Module {
+  char       *memory;
+  size_t      size;
+  const char *cmdline;
+
+  static Module from_file(const char *filename, const char *cmdline)
+  {
+    Module m;
+    int fd;
+    struct stat info;
+
+    if ((0 > (fd = open(filename, O_RDONLY))) or
+        (0 > fstat(fd, &info))) {
+      fprintf(stderr, "open %s: %s\n", filename, strerror(errno));
+      exit(EXIT_FAILURE);
+    }
+
+    m.cmdline = cmdline;
+    m.size    = info.st_size;
+
+    m.memory  = reinterpret_cast<char *>(mmap(NULL, m.size, PROT_READ, MAP_PRIVATE,
+                                              fd, 0));
+    if (m.memory == MAP_FAILED) {
+      perror("mmap");
+      exit(EXIT_FAILURE);
+    }
+
+    return m;
+  }
+};
+
+static std::vector<Module>   modules;
 
 // Used to serialize all operations (for now)
 static sem_t                 vcpu_sem;
@@ -157,14 +196,12 @@ static void *vcpu_thread_fn(void *arg)
   return NULL;
 }
 
-#define MAX_VCPU 4
-static struct {
+struct  Vcpu_info {
   pthread_t tid;
   sem_t     block;
-  bool      recall_pending;
-} vcpu_info[MAX_VCPU];
+};
 
-static unsigned vcpu_no = 0;
+static std::vector<Vcpu_info> vcpu_info;
 
 static bool receive(Device *, MessageHostOp &msg)
 {
@@ -183,20 +220,21 @@ static bool receive(Device *, MessageHostOp &msg)
       if (msg.value <= ram_size) {
         ram_size -= msg.value;
         msg.phys  = ram_size;
-        Logging::printf("Allocating from guest %08zx+%lx\n", ram_size, msg.value);
+        Logging::printf("host: Allocating from guest %08zx+%lx\n", ram_size, msg.value);
       } else res = false;
       break;
     case MessageHostOp::OP_VCPU_CREATE_BACKEND: {
-      msg.value = vcpu_no;
+      msg.value = vcpu_info.size();
 
-      if ((0 != sem_init(&vcpu_info[vcpu_no].block, 0, 0)) or
-          (0 != pthread_create(&vcpu_info[vcpu_no].tid, NULL, vcpu_thread_fn, msg.vcpu))) {
+      vcpu_info.push_back(Vcpu_info());
+
+      if ((0 != sem_init(&vcpu_info[msg.value].block, 0, 0)) or
+          (0 != pthread_create(&vcpu_info[msg.value].tid, NULL, vcpu_thread_fn, msg.vcpu))) {
         perror("sem_init/pthread_create");
         res = false;
         break;
       }
-      vcpu_info[vcpu_no].recall_pending = false;
-      vcpu_no ++;
+
       break;
     }
     case MessageHostOp::OP_VCPU_BLOCK:
@@ -205,13 +243,27 @@ static bool receive(Device *, MessageHostOp &msg)
       sem_wait(&vcpu_sem);
       break;
     case MessageHostOp::OP_VCPU_RELEASE:
-      vcpu_info[msg.value].recall_pending = true;
-      asm volatile ("" ::: "memory");
       sem_post(&vcpu_info[msg.value].block);
       break;
     case MessageHostOp::OP_GET_MODULE:
-      printf("host: Multiboot modules not implemented.\n");
-      res = false;
+      // For historical reasons, modules numbers start with 1.
+      msg.module --;
+
+      if (msg.module < modules.size() and
+          msg.size   > modules[msg.module].size) {
+        memcpy(msg.start, modules[msg.module].memory, modules[msg.module].size);
+
+        // Align the end of the module to get the cmdline on a new page.
+        uintptr_t s = reinterpret_cast<uintptr_t>(msg.start) + modules[msg.module].size;
+        s = (s + 0xFFFUL) & ~0xFFFUL;
+
+        msg.size    = modules[msg.module].size;
+        msg.cmdline = reinterpret_cast<char *>(s);
+        msg.cmdlen  = strlen(modules[msg.module].cmdline) + 1;
+
+        strcpy(msg.cmdline, modules[msg.module].cmdline);
+      } else
+        res = false;
       break;
     default:
       Logging::panic("%s - unimplemented operation %#x\n",
@@ -230,7 +282,7 @@ static void timeout_request()
 
       unsigned long long delta = mb_clock.delta(next_to, 1000000000UL);
 
-      printf("Programming timer for %lluns.\n", delta);
+      //printf("Programming timer for %lluns.\n", delta);
 
       struct itimerspec t = {
         .it_interval = {0, 0},
@@ -298,7 +350,7 @@ static bool receive(Device *, MessageConsole &msg)
 
 static void usage()
 {
-  fprintf(stderr, "Usage: seoul [-m RAM]\n");
+  fprintf(stderr, "Usage: seoul [-m RAM] [kernel parameters] [module1 parameters] ...\n");
   exit(EXIT_FAILURE);
 }
 
@@ -309,11 +361,12 @@ int main(int argc, char **argv)
          version_str);
 
   int ch;
-  while ((ch = getopt(argc, argv, "m:")) != -1) {
+  while ((ch = getopt(argc, argv, "hm:")) != -1) {
     switch (ch) {
     case 'm':
       ram_size = atoi(optarg) << 20;
       break;
+    case 'h':
     case '?':
     default:
       usage();
@@ -321,11 +374,20 @@ int main(int argc, char **argv)
     }
   }
 
+  if ((argc - optind) % 2) {
+    printf("Module and command line parameters must be matched.\n");
+    exit(EXIT_FAILURE);
+  }
+
+  for (int i = optind; i+1 < argc; i += 2) {
+    modules.push_back(Module::from_file(argv[i], argv[i+1]));
+  }
+
+  printf("\nStarting devices:\n");
   printf("Devices included:\n");
   PARAM_ITER(p) {
     printf("\t%s\n", (*p)->name);
   }
-  printf("\nStarting devices:\n");
 
   // Allocating RAM.
 
@@ -364,7 +426,7 @@ int main(int argc, char **argv)
   }
 
   printf("Devices and %u virtual CPU%s started successfully.\n",
-         vcpu_no, vcpu_no == 1 ? "" : "s");
+         vcpu_info.size(), vcpu_info.size() == 1 ? "" : "s");
 
   // init VCPUs
   for (VCpu *vcpu = mb.last_vcpu; vcpu; vcpu=vcpu->get_last()) {
@@ -393,8 +455,8 @@ int main(int argc, char **argv)
 
   sem_post(&vcpu_sem);
 
-  for (unsigned i = 0; i < vcpu_no; i++)
-    if (0 != pthread_join(vcpu_info[i].tid, NULL))
+  for (Vcpu_info &i : vcpu_info)
+    if (0 != pthread_join(i.tid, NULL))
       perror("pthread_join");
 
   printf("Terminating.\n");
