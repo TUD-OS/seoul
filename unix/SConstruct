@@ -10,7 +10,6 @@ conf = Configure(env)
 # Link with rt library when needed.
 if not conf.CheckFunc('timer_create'):
     if conf.CheckLib('rt'):
-        conf.env.Append(LINKFLAGS = '-lrt ')
         if not conf.CheckFunc('timer_create'):
             print ("POSIX timer API seems broken.")
             Exit(1)
