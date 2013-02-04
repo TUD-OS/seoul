@@ -294,6 +294,32 @@ static void timeout_request()
   }
 }
 
+static void timeout_trigger()
+{
+  timevalue now = mb.clock()->time();
+
+  // Force time reprogramming. Otherwise, we might not reprogram a
+  // timer, if the timeout event reached us too early.
+  last_to = ~0ULL;
+
+  // trigger all timeouts that are due
+  unsigned nr;
+  while ((nr = timeouts.trigger(now))) {
+    MessageTimeout msg(nr, timeouts.timeout());
+    timeouts.cancel(nr);
+    mb.bus_timeout.send(msg);
+  }
+}
+
+
+static void timeout_handler_fn(union sigval)
+{
+  sem_wait(&vcpu_sem);
+  timeout_trigger();
+  timeout_request();
+  sem_post(&vcpu_sem);
+}
+
 static bool receive(Device *, MessageTimer &msg)
 {
   switch (msg.type)
@@ -400,8 +426,9 @@ int main(int argc, char **argv)
 
   // Creating timer. I hate C++: No useful initializers...
   struct sigevent ev;
-  ev.sigev_notify = SIGEV_SIGNAL;
-  ev.sigev_signo  = SIGALRM;
+  ev.sigev_notify            = SIGEV_THREAD;
+  ev.sigev_notify_attributes = NULL;
+  ev.sigev_notify_function   = timeout_handler_fn;
 
   if (0 != timer_create(CLOCK_MONOTONIC, &ev, &timer_id)) {
     perror("timer_create");
