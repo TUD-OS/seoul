@@ -159,7 +159,7 @@ def generate_functions(name, flags, snippet, enc, functions, l2):
     l2.extend(filter(lambda x: x, map(lambda x: x[0] in flags and x[1] or "", additions)))
 
     # flag handling
-    f2 = ["LOADFLAGS", "SAVEFLAGS", "MODRM", "BYTE", "DIRECTION", "READONLY", "ASM", "RMW", "LOCK", "MOFS", "BITS"]
+    f2 = ["LOADFLAGS", "SAVEFLAGS", "MODRM", "BYTE", "DIRECTION", "READONLY", "ASM", "RMW", "LOCK", "MOFS", "BITS", "QWORD"]
     if "SKIPMODRM" in flags:                    f2.remove("MODRM")
     if "IMM1" in flags and "BITS" in flags:     f2.remove("BITS")
     if name in ["cltd"]:                        f2.remove("DIRECTION")
@@ -428,13 +428,14 @@ opcodes += [(x, [x not in ["bt"] and "RMW" or "READONLY", "SAVEFLAGS", "BITS", "
 											"[lock] "+x+" [EAX],(%ecx)"]) for x in ["bt", "btc", "bts", "btr"]]
 opcodes += [("cmpxchg", ["RMW"], ['char res; asm volatile("mov (%2), %2; [lock] cmpxchg [EDX], (%3); setz %1" : "+a"(cache->_cpu->eax), "=d"(res) : "d"(tmp_src), "c"(tmp_dst))',
 				  "if (res) cache->_cpu->efl |= EFL_ZF; else cache->_cpu->efl &= EFL_ZF"])]
+opcodes += [("cmpxchg8b", ["RMW", "NO_OS", "QWORD"], ['char res; asm volatile("[lock] cmpxchg8b (%3); setz %2" : "+a"(cache->_cpu->eax), "+d"(cache->_cpu->edx), "=c"(res) : "D"(tmp_dst), "b"(cache->_cpu->ebx), "c"(cache->_cpu->ecx))',
+				  "if (res) cache->_cpu->efl |= EFL_ZF; else cache->_cpu->efl &= EFL_ZF"])]
 opcodes += [("xadd", ["RMW", "ASM", "SAVEFLAGS"], ['mov (%edx), [EAX]', '[lock] xadd [EAX], (%ecx)', 'mov [EAX], (%edx)'])]
 
 # unimplemented instructions
 opcodes += [(x, [], []) for x in ["vmcall", "vmlaunch", "vmresume", "vmxoff", "vmptrld", "vmptrst", "vmread", "vmwrite"]] # , "vmxon", "vmclear"
 opcodes += [(x, [], []) for x in ["sysenter", "sysexit", "monitor", "mwait"]]
 opcodes += [(x, [], []) for x in ["rdpmc"]]
-opcodes += [(x, ["RMW"], []) for x in ["cmpxchg8b"]]
 opcodes += [(x, [], []) for x in [
 	"arpl", "bound", "enter",
 	"lar",  "lsl",

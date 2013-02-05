@@ -132,7 +132,8 @@ class InstructionCache : public MemTlb
     IC_LOCK      = 1 <<  7,
     IC_BITS      = 1 <<  8,
     IC_RMW       = 1 <<  9,
-    IC_MOFS      = 1 << 10
+    IC_MOFS      = 1 << 10,
+    IC_QWORD     = 1 << 11,
   };
 
 
@@ -421,9 +422,9 @@ public:
 
     //COUNTER_INC("executed");
     assert(_entry->execute);
-    bool is_byte = _entry->flags & IC_BYTE;
-    void *tmp_src = _entry->src;
-    void *tmp_dst = _entry->dst;
+    unsigned length = (_entry->flags & IC_BYTE) ? 1 : (_entry->flags & IC_QWORD ? 8 : 1 << _entry->operand_size);
+    void *tmp_src   = _entry->src;
+    void *tmp_dst   = _entry->dst;
 
     if (((_entry->prefixes & 0xff) == 0xf0) && ((~_entry->flags & IC_LOCK) || (_entry->modrminfo & MRM_REG))) {
       Logging::panic("LOCK prefix %02x%02x%02x%02x at eip %x:%x\n", _entry->data[0], _entry->data[1], _entry->data[2], _entry->data[3], _cpu->cs.sel, _cpu->eip);
@@ -435,13 +436,13 @@ public:
     if (_entry->flags & IC_RMW) type = Type(type | TYPE_R);
     if (_entry->flags & IC_MODRM)
       {
-	if (modrm2mem(tmp_dst, is_byte ? 1 : 1 << _entry->operand_size, type)) return _fault;
+	if (modrm2mem(tmp_dst, length, type)) return _fault;
       }
     if (_entry->flags & IC_MOFS)
       {
 	unsigned virt = 0;
 	move(&virt, _entry->data+_entry->offset_opcode, _entry->address_size);
-	if (virt_to_ptr(tmp_dst, is_byte ? 1 : 1 << _entry->operand_size, type, virt)) return _fault;
+	if (virt_to_ptr(tmp_dst, length, type, virt)) return _fault;
       }
     if (_entry->flags & IC_DIRECTION)
       {
