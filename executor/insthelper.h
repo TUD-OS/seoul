@@ -931,7 +931,7 @@ int helper_FXSAVE()
   if (virt & 0xf) GP0; // could be also AC if enabled
   for (unsigned i=0; i < sizeof(_fpustate)/sizeof(unsigned); i++)
     {
-      void *addr;
+      void *addr = nullptr;
       if (!virt_to_ptr(addr, 4, user_access(TYPE_W), virt + i*sizeof(unsigned)))  return _fault;
       move<2>(addr, _fpustate+i);
     }
