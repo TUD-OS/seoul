@@ -304,6 +304,7 @@ opcodes += [
     ("nopl (%eax)",  ["NO_OS", "SKIPMODRM", "MODRM", "DROP1"], [" "]),
     ("lahf",  ["NO_OS"], ["cache->_cpu->ah = (cache->_cpu->efl & 0xd5) | 2"]),
     ("sahf",  ["NO_OS"], ["cache->_cpu->efl = (cache->_cpu->efl & ~0xd5) | (cache->_cpu->ah  & 0xd5)"]),
+    ("clflush", ["ASM", "BYTE"], ["clflush (%ecx)"]),
     ]
 opcodes += [(x, ["ASM", "EAX", "NO_OS", x in ["aaa", "aas"] and "LOADFLAGS", "SAVEFLAGS"],
 	     ["mov (%ecx), %eax", x, "mov %eax, (%ecx)"])
