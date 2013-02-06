@@ -25,7 +25,7 @@ if cxx:
 def AddOptionalFlag(context, extension, key, flag):
     context.Message('Check if compiler supports "%s"... ' % flag)
     old_var = context.env[key];
-    context.env[key] += flag + ' '
+    context.env[key] += ' ' + flag + ' '
     result = context.TryCompile('', extension)
     context.Result(result)
     if not result:
