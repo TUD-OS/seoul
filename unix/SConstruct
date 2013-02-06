@@ -5,7 +5,36 @@ env = Environment(CPPPATH = ['../include', "include"],
                   CCFLAGS = '-m32 -g -O1 -fno-strict-aliasing -Wall -Wextra -Wno-unused-parameter -Wno-parentheses -pthread',
                   CXXFLAGS = '-std=gnu++11 -fno-rtti -fno-exceptions')
 
-conf = Configure(env)
+cc   = ARGUMENTS.get('cc')
+cxx  = ARGUMENTS.get('cxx')
+
+if not (cxx and cc):
+    print("You probably want to set a both cc and cxx!")
+
+if cc:
+    print("CC forced to '%s'." % cc)
+    env['CC'] = cc
+
+if cxx:
+    print("CXX forced to '%s'." % cxx)
+    env['CXX'] = cxx
+
+
+# Add flag to env[key] if the compiler is able to build an object file
+# with this. extension can be '.c' or '.cc'.
+def AddOptionalFlag(context, extension, key, flag):
+    context.Message('Check if compiler supports "%s"... ' % flag)
+    old_var = context.env[key];
+    context.env[key] += flag + ' '
+    result = context.TryCompile('', extension)
+    context.Result(result)
+    if not result:
+        context.env[key] = old_var
+    return result
+
+conf = Configure(env, custom_tests = {'AddOptionalFlag' : AddOptionalFlag})
+
+conf.AddOptionalFlag('.cc', 'CCFLAGS', '-Wno-constant-logical-operand')
 
 # Link with rt library when needed.
 if not conf.CheckFunc('timer_create'):
