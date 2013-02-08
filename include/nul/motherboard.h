@@ -36,7 +36,7 @@ class VCpu;
  *
  * This also knows the backend devices.
  */
-class Motherboard : public StaticReceiver<Motherboard>
+class Motherboard
 {
   Clock *_clock;
   class Hip   *_hip;
