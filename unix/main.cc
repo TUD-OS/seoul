@@ -265,6 +265,12 @@ static bool receive(Device *, MessageHostOp &msg)
       } else
         res = false;
       break;
+    case MessageHostOp::OP_GET_MAC: {
+      static unsigned long long mac_prefix = 0x42000000;
+      static unsigned long long mac_host   = random();
+      msg.mac = mac_prefix << 16 | mac_host;
+      break;
+    }
     default:
       Logging::panic("%s - unimplemented operation %#x\n",
                        __PRETTY_FUNCTION__, msg.type);
