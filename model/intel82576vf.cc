@@ -23,10 +23,11 @@
 #include <service/time.h>
 #include <service/net.h>
 #include <service/endian.h>
+#include <service/memory.h>
 #include <nul/net.h>
 #include <model/pci.h>
 
-#include "82576vf.h"
+#include "intel82576vf.h"
 
 using namespace Endian;
 
@@ -82,8 +83,8 @@ class Model82576vf : public StaticReceiver<Model82576vf>
   bool       _promisc;
   Mta        _mta;
 
-#include <model/82576vfmmio.inc>
-#include <model/82576vfpci.inc>
+#include <model/intel82576vfmmio.inc>
+#include <model/intel82576vfpci.inc>
 
   struct queue {
     Model82576vf *parent;
@@ -931,11 +932,11 @@ public:
 		    mem_mmio, mem_msix);
 
     // Init queues
-    _local_rx_regs = new (4096) uint32[1024];
+    _local_rx_regs = new (Aligned(4096)) uint32[1024];
     _rx_queues[0].init(this, 0, _local_rx_regs);
     _rx_queues[1].init(this, 1, _local_rx_regs + 0x100/4);
 
-    _local_tx_regs = new (4096) uint32[1024];
+    _local_tx_regs = new (Aligned(4096)) uint32[1024];
     _tx_queues[0].init(this, 0, _local_tx_regs);
     _tx_queues[1].init(this, 1, _local_tx_regs + 0x100/4);
 
@@ -950,12 +951,12 @@ public:
 
 };
 
-PARAM_HANDLER(82576vf,
-	      "82576vf:[promisc][,mem_mmio][,mem_msix][,txpoll_us][,rx_map] - attach an Intel 82576VF to the PCI bus.",
+PARAM_HANDLER(intel82576vf,
+	      "intel82576vf:[promisc][,mem_mmio][,mem_msix][,txpoll_us][,rx_map] - attach an Intel 82576VF to the PCI bus.",
 	      "promisc   - if !=0, be always promiscuous (use for Linux VMs that need it for bridging) (Default 1)",
 	      "txpoll_us - if !=0, map TX registers to guest and poll them every txpoll_us microseconds. (Default 0)",
 	      "rx_map    - if !=0, map RX registers to guest. (Default: Yes)",
-	      "Example: 82576vf"
+	      "Example: intel82576vf"
 	      )
 {
   MessageHostOp msg(MessageHostOp::OP_GET_MAC, 0UL);

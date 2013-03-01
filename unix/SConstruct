@@ -2,7 +2,7 @@
 
 env = Environment(CPPPATH = ['../include', "include"],
                   LINKFLAGS = '-m32 -g -pthread ',
-                  CCFLAGS = '-m32 -g -O1 -fno-strict-aliasing -Wall -Wextra -Wno-unused-parameter -Wno-parentheses -pthread',
+                  CCFLAGS = '-march=native -m32 -g -O1 -fno-strict-aliasing -Wall -Wextra -Wno-unused-parameter -Wno-parentheses -pthread',
                   CXXFLAGS = '-std=gnu++11 -fno-rtti -fno-exceptions')
 
 cc   = ARGUMENTS.get('cc')
@@ -52,6 +52,13 @@ AlwaysBuild(Command('version.inc', [], """( git describe --dirty --long --always
 
 Precious(env.Command(["../executor/instructions.inc"], ["../executor/build_instructions.py"], "$SOURCE > $TARGET"))
 
+
+
+# Build register handling functions for Intel 82576vf model
+for f in ['mmio', 'pci']:
+    env.Command('../include/model/intel82576vf%s.inc' % f, ['../model/intel82576vf/genreg.py', '../model/intel82576vf/reg_%s.py' % f],
+                     '${SOURCES[0]} ${SOURCES[1:]} ${TARGET}')
+
 seoul = env.Program('seoul',
                     [
                      '../model/memorycontroller.cc',
@@ -66,6 +73,7 @@ seoul = env.Program('seoul',
                      '../model/serial16550.cc',
                      '../model/sink.cc',
                      '../model/vga.cc',
+                     '../model/intel82576vf.cc',
                      '../executor/vbios_disk.cc',
                      '../executor/vbios_keyboard.cc',
                      '../executor/vbios_mem.cc',
