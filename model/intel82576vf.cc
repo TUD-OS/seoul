@@ -190,8 +190,6 @@ class Model82576vf : public StaticReceiver<Model82576vf>
 	uint32 data_left = payload_len;
 	uint32 data_sent = 0;
 
-	//Logging::printf("SEGMENT header %x data %x (total %x) mss %x\n", header_len, data_left, packet_len, mss);
-
 	if (l4t == tx_desc::L4T_SCTP) {
 	  Logging::printf("XXX SCTP segmentation?\n");
 	  return;
@@ -202,12 +200,6 @@ class Model82576vf : public StaticReceiver<Model82576vf>
 	  return;
 	}
 
-	// Logging::printf("SEGMENT HEADERS: MAC %x IP %x L4 %x %s%s\n", maclen, iplen, l4len,
-	// 		(l4t == L4T_UDP) ? "UDP" : "TCP", ipv6 ? "v6" : "v4");
-
-	//hexdump(packet, packet_len);
-
-	//uint16 &packet_mac_len = *(uint16 *)(packet + 6 + 6);
 	uint16 &packet_ip4_id  = *reinterpret_cast<uint16 *>(packet + maclen + 4);
 	uint16 &packet_ip_len  = *reinterpret_cast<uint16 *>(packet + maclen + (ipv6 ? 4 : 2));
 	uint32 &packet_tcp_seq = *reinterpret_cast<uint32 *>(packet + maclen + iplen + 4);
@@ -218,16 +210,8 @@ class Model82576vf : public StaticReceiver<Model82576vf>
 	while (data_left > 0) {
 	  uint16 chunk_size = (data_left > mss) ? mss : data_left;
 	  data_left -= chunk_size;
-	  //Logging::printf("CHUNK%u: DTA %x \n", i, chunk_size);
 	  
-	  // XXX ?
-	  //packet_mac_len = chunk_size + maclen + iplen + l4len - 14;
-
-	  // Logging::printf("IP len %x (at %x)\n", chunk_size + header_len - maclen,
-	  // 		  maclen + (ipv6 ? 4 : 2));
 	  packet_ip_len = hton16(chunk_size + header_len - maclen);
-
-	  // XXX UDP
 
 	  if (l4t == tx_desc::L4T_TCP)
 	    packet_tcp_flg = tcp_orig_flg &
@@ -241,8 +225,6 @@ class Model82576vf : public StaticReceiver<Model82576vf>
 	  // At this point we have prepared the final packet, we just
 	  // need to fix checksums and off it goes...
 	  uint32 segment_len = header_len + chunk_size;
-	  //Logging::printf("CHUNK%u sent %x bytes\n", i-1, segment_len);
-	  //hexdump(packet, segment_len);
 	  apply_offload(packet, segment_len, desc);
 	  MessageNetwork m(packet, segment_len, 0);
 	  parent->_net.send(m);
@@ -254,7 +236,6 @@ class Model82576vf : public StaticReceiver<Model82576vf>
 	  i++;
 	}
 	//Logging::panic("INSPECT");
-	// 
       }
     }
 
@@ -286,7 +267,6 @@ class Model82576vf : public StaticReceiver<Model82576vf>
 	uint16 &ipv4_sum = *reinterpret_cast<uint16 *>(packet + maclen + 10);
 	ipv4_sum = 0;
 	ipv4_sum = IPChecksum::ipsum(packet, maclen, iplen);
-	//Logging::printf("IPv4 CSO: %x\n", ipv4_sum);
       }
 
       if ((popts & 2 /* TXSM */) != 0) {
@@ -303,11 +283,9 @@ class Model82576vf : public StaticReceiver<Model82576vf>
                                                (tucmd & 2 /* IPv4 */) == 0);
 	    l4_sum[0] = sum;
 	    l4_sum[1] = sum>>8;
-	    //Logging::printf("%s CSO %x\n", (l4t == L4T_UDP) ? "UDP" : "TCP", sum);
           }
           break;
         case tx_desc::L4T_SCTP:		// SCTP
-          // XXX Not implemented.
           Logging::printf("XXX SCTP CSO requested. Not implemented!\n");
           break;
         case 3:
@@ -319,14 +297,11 @@ class Model82576vf : public StaticReceiver<Model82576vf>
 
     void handle_dta(uint64 addr, tx_desc &desc)
     {
-      // uint32 payload_len = desc.advanced.pay >> 14;
       uint32 data_len = desc.dtalen();
       uint8  dcmd = desc.dcmd();
-      // uint8  cc   = (desc.advanced.pay>>4) & 0x7;
-      // Logging::printf("TX advanced data descriptor: dcmd %x dta %x pay %x ctx %x\n",
-      // 		      dcmd, data_len, payload_len, cc);
+
       if ((dcmd & (1<<5)) == 0) {
-        //Logging::printf("TX bad descriptor\n");
+        // Logging::printf("TX bad descriptor\n");
 	return;
       }
 
@@ -338,8 +313,6 @@ class Model82576vf : public StaticReceiver<Model82576vf>
         TSE = 128,
       };
 
-      // Logging::printf("%s%s%s%s%s\n", (dcmd&EOP)?"EOP ":"", (dcmd&IFCS)?"IFCS ":"", (dcmd&RS)?"RS ":"",
-      // 		      (dcmd&VLE)?"VLE ":"", (dcmd&TSE)?"TSE":"");
       const uint8 *data = reinterpret_cast<uint8 *>(parent->guestmem(desc.raw[0]));
 
       if ((dcmd & IFCS) == 0)
@@ -390,12 +363,10 @@ class Model82576vf : public StaticReceiver<Model82576vf>
 	uint64 addr = (static_cast<uint64>(tdbah)<<32 | tdbal) + ((tdh*16) % tdlen);
 	tx_desc desc;
 
-	//Logging::printf("TX descriptor at %llx\n", addr);
 	if (!parent->copy_in(addr, desc.raw, sizeof(desc)))
 	  return;
 	if ((desc.raw[1] & (1<<29)) == 0) {
-	  Logging::printf("TX legacy descriptor: XXX\n");
-	  // XXX Not implemented!
+	  Logging::printf("TX legacy descriptor: Not implemented!\n");
 	} else {
 	  uint8 dtyp = (desc.raw[1] >> 20) & 0xF;
 	  switch (dtyp) {
@@ -761,10 +732,8 @@ public:
     switch (msg.type) {
     case MessagePciConfig::TYPE_READ:
       msg.value = PCI_read(msg.dword<<2);
-      //Logging::printf("PCICFG READ  %02x -> %08x\n", msg.dword, msg.value);
       break;
     case MessagePciConfig::TYPE_WRITE:
-      //Logging::printf("PCICFG WRITE %02x <- %08x\n", msg.dword, msg.value);
       PCI_write(msg.dword<<2, msg.value);
       break;
     case MessagePciConfig::TYPE_PTR:
