@@ -8,9 +8,6 @@ env = Environment(CPPPATH = ['../include', "include"],
 cc   = ARGUMENTS.get('cc')
 cxx  = ARGUMENTS.get('cxx')
 
-if not (cxx and cc):
-    print("You probably want to set a both cc and cxx!")
-
 if cc:
     print("CC forced to '%s'." % cc)
     env['CC'] = cc
