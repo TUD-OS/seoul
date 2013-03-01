@@ -18,24 +18,14 @@ most platforms without change.
 
 This repository also contains drivers developed for NUL in =host=.
 
-** Building
+* Building the UNIX demo
 
-Execute =scons= in =unix/=.
-
-** Starting a VM
+The Unix frontend builds with gcc 4.7 on Linux. To build it you need
+scons and a complete 32-bit development environment.  If you are ready
+to give it a go, execute =scons= in =unix/= to start the build process.
 
 We currently only support booting Multiboot compliant kernels. Execute
 =seoul -h= to get usage information.
 
-** Directory Structure
-
- - include/
-   - service/ :: general service includes
-   - nul/ :: NUL environment (leftovers from NUL past), the motherboard, bus and message interface, everything what NUL programs needs
-   - host/ :: host drivers and shared includes
-   - model/ :: model support headers
-   - executor/ :: public executor interface
- - host/ :: host drivers
- - model/ :: device models
- - executors/ :: cpu model and instruction emulator
-
+Serial output is redirected to standard output. VGA is available to
+the VM, but currently not displayed to the user.
