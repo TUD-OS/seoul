@@ -19,17 +19,24 @@
 #pragma once
 
 #include <nul/types.h>
-#include <malloc.h>
+#include <stdlib.h>
 
 struct Aligned {
   size_t alignment;
+
+  void *alloc(size_t size) const
+  {
+    void *ret;
+    return (0 == posix_memalign(&ret, alignment, size)) ? ret : nullptr;
+  }
+
   Aligned(size_t alignment) : alignment(alignment) {}
 };
 
 void *operator new   (size_t size, Aligned const alignment) {
-  return memalign(alignment.alignment, size); }
+  return alignment.alloc(size); }
 
 void *operator new[] (size_t size, Aligned const alignment) {
-  return memalign(alignment.alignment, size); }
+  return alignment.alloc(size); }
 
 /* EOF */
