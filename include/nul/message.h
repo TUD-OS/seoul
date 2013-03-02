@@ -428,10 +428,8 @@ struct MessageVesa
 /* HOST messages                                    */
 /****************************************************/
 
-class Utcb;
 class VCpu;
 typedef void (*ServiceThreadFn)(void *) REGPARM(0) NORETURN;
-typedef void (*ServicePortalFn)(void *, Utcb *) REGPARM(0);
 
 /**
  * Request to the host, such as notify irq or request IO region.
