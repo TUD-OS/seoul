@@ -6,3 +6,4 @@
 /unix/config.log
 build_instructions.cache
 /executor/instructions.inc
+*.pyc
