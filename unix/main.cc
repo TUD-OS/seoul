@@ -278,28 +278,6 @@ static bool receive(Device *, MessageHostOp &msg)
     return res;
 }
 
-// Update or program pending timeout.
-static void timeout_request()
-{
-  if (timeouts.timeout() != ~0ULL) {
-    timevalue next_to = timeouts.timeout();
-    if (next_to != last_to) {
-      last_to = next_to;
-
-      unsigned long long delta = mb_clock.delta(next_to, 1000000000UL);
-
-      //printf("Programming timer for %lluns.\n", delta);
-
-      struct itimerspec t = {
-        .it_interval = {0, 0},
-        .it_value = {long(delta / 1000000000L), (long)(delta % 1000000000L)}
-      };
-      int res = timer_settime(timer_id, 0, &t, NULL);
-      assert(!res);
-    }
-  }
-}
-
 static void timeout_trigger()
 {
   timevalue now = mb.clock()->time();
@@ -314,6 +292,35 @@ static void timeout_trigger()
     MessageTimeout msg(nr, timeouts.timeout());
     timeouts.cancel(nr);
     mb.bus_timeout.send(msg);
+  }
+}
+
+// Update or program pending timeout.
+static void timeout_request()
+{
+  while (timeouts.timeout() != ~0ULL) {
+    timevalue next_to = timeouts.timeout();
+    if (next_to != last_to) {
+      last_to = next_to;
+
+      unsigned long long delta = mb_clock.delta(next_to, 1000000000UL);
+      if (delta != 0) {
+        //printf("Programming timer for %lluns.\n", delta);
+        struct itimerspec t = {
+          .it_interval = {0, 0},
+          .it_value = {long(delta / 1000000000L), (long)(delta % 1000000000L)}
+        };
+        int res = timer_settime(timer_id, 0, &t, NULL);
+        assert(!res);
+        break;
+      }
+      else {
+        // if the delta is 0, it means that the timeout has already been reached.
+        timeout_trigger();
+        // no break here because there might be other timeouts, so that we need
+        // to program the timer for them
+      }
+    }
   }
 }
 
