@@ -389,7 +389,7 @@ opcodes += [(x, ["RMW"], ["unsigned count",
 			    "if ([IMM]) count = cache->_entry->immediate; else count = cache->_cpu->ecx",
 			    "tmp_src = cache->get_reg32((cache->_entry->data[cache->_entry->offset_opcode] >> 3) & 0x7)",
 			    'asm volatile ("xchg %%\" EXPAND(REG(ax)) \", %%\" EXPAND(REG(cx)) \"; mov (%%\" EXPAND(REG(dx)) \"), %%edx; [data16] '+
-			    x+' %%cl, %%\" EXPAND(REG(dx)) \", (%%eax); pushf; pop %%" EXPAND(REG(ax))  : "+a"(count), "+d"(tmp_src), "+c"(tmp_dst))',
+			    x+' %%cl, %%\" EXPAND(REG(dx)) \", (%%\" EXPAND(REG(ax)) \"); pushf; pop %%" EXPAND(REG(ax))  : "+a"(count), "+d"(tmp_src), "+c"(tmp_dst))',
 			    "cache->_cpu->efl = (cache->_cpu->efl & ~0x8d5) | (count  & 0x8d5)"])
 	    for x in ["shrd", "shld"]]
 opcodes += [("imul", ["DIRECTION"], ["unsigned param, result",
