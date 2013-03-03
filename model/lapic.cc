@@ -272,7 +272,7 @@ private:
 
     // EXTINT pending?
     for (unsigned i=0; i < NUM_LVT; i++) {
-      unsigned lvt;
+      unsigned lvt = 0;
       Lapic_read(i + LVT_BASE, lvt);
       if (_lvtds[i] && ((1 << ((lvt >> 8) & 7)) == VCpu::EVENT_EXTINT))
 	return 0x100 | i;
@@ -430,7 +430,7 @@ private:
    */
   bool trigger_lvt(unsigned num){
     assert(num < NUM_LVT);
-    unsigned lvt;
+    unsigned lvt = 0;
     Lapic_read(num + LVT_BASE, lvt);
     if (!num) COUNTER_INC("LVT0");
 
