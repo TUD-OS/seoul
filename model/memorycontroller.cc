@@ -21,8 +21,8 @@
 class MemoryController : public StaticReceiver<MemoryController>
 {
   char *_physmem;
-  unsigned long _start;
-  unsigned long _end;
+  uintptr_t _start;
+  uintptr_t _end;
 
 
 public:
@@ -49,7 +49,7 @@ public:
   }
 
 
-  MemoryController(char *physmem, unsigned long start, unsigned long end) : _physmem(physmem), _start(start), _end(end) {}
+  MemoryController(char *physmem, uintptr_t start, uintptr_t end) : _physmem(physmem), _start(start), _end(end) {}
 };
 
 
@@ -62,8 +62,8 @@ PARAM_HANDLER(mem,
   MessageHostOp msg(MessageHostOp::OP_GUEST_MEM, 0UL);
   if (!mb.bus_hostop.send(msg))
     Logging::panic("%s failed to get physical memory\n", __PRETTY_FUNCTION__);
-  unsigned long start = ~argv[0] ? argv[0] : 0;
-  unsigned long end   = argv[1] > msg.len ? msg.len : argv[1];
+  uintptr_t start = ~argv[0] ? argv[0] : 0;
+  uintptr_t end   = argv[1] > msg.len ? msg.len : argv[1];
   Logging::printf("physmem: %lx [%lx, %lx]\n", msg.value, start, end);
   MemoryController *dev = new MemoryController(msg.ptr, start, end);
   // physmem access

@@ -38,7 +38,7 @@ private:
   unsigned _busnum;
   unsigned _buscount;
   unsigned short _iobase;
-  unsigned long  _membase;
+  uintptr_t _membase;
   unsigned _confaddress;
   unsigned char _cf9;
 #define  REGBASE "../model/pcihostbridge.cc"
@@ -216,7 +216,7 @@ public:
 
 
   void discovery() {
-    unsigned length = discovery_length("MCFG", 44);
+    size_t length = discovery_length("MCFG", 44);
     discovery_write_dw("MCFG", length +  0, _membase, 4);
     discovery_write_dw("MCFG", length +  4, static_cast<unsigned long long>(_membase) >> 32, 4);
     discovery_write_dw("MCFG", length +  8, ((_busnum & 0xff) << 16) | (((_buscount-1) & 0xff) << 24) | ((_busnum >> 8) & 0xffff), 4);
@@ -230,7 +230,7 @@ public:
   }
 
 
-  PciHostBridge(Motherboard &mb, unsigned busnum, unsigned buscount, unsigned short iobase, unsigned long membase)
+  PciHostBridge(Motherboard &mb, unsigned busnum, unsigned buscount, unsigned short iobase, uintptr_t membase)
     :  _mb(mb), _busnum(busnum), _buscount(buscount), _iobase(iobase), _membase(membase) {}
 };
 

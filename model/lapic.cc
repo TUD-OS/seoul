@@ -701,7 +701,7 @@ public:
 
     unsigned value = 0;
     discovery_read_dw("APIC", 36, value);
-    unsigned length = discovery_length("APIC", 44);
+    size_t length = discovery_length("APIC", 44);
     if (value == 0) {
 
       // NMI is connected to LINT1 on all LAPICs

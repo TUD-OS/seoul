@@ -63,7 +63,7 @@ class VirtualBiosDisk : public StaticReceiver<VirtualBiosDisk>, public BiosCommo
   /**
    * Read/Write disk helper.
    */
-  bool disk_op(MessageBios &msg, unsigned disk_nr, unsigned long long blocknr, unsigned long address, unsigned count, bool write)
+  bool disk_op(MessageBios &msg, unsigned disk_nr, unsigned long long blocknr, uintptr_t address, size_t count, bool write)
   {
     DmaDescriptor dma;
     dma.bytecount  = 512*count;

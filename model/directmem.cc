@@ -27,8 +27,8 @@
 class DirectMemDevice : public StaticReceiver<DirectMemDevice>
 {
   char *_ptr;
-  unsigned long _phys;
-  unsigned long _size;
+  uintptr_t _phys;
+  size_t _size;
  public:
   bool  receive(MessageMemRegion &msg)
   {
@@ -53,7 +53,7 @@ class DirectMemDevice : public StaticReceiver<DirectMemDevice>
   }
 
 
-  DirectMemDevice(char *ptr, unsigned long phys, unsigned long size) : _ptr(ptr), _phys(phys), _size(size)
+  DirectMemDevice(char *ptr, uintptr_t phys, size_t size) : _ptr(ptr), _phys(phys), _size(size)
   {
     Logging::printf("DirectMem: %p base %lx+%lx\n", ptr, phys, size);
   }
@@ -64,8 +64,8 @@ PARAM_HANDLER(mio,
 	      "mio:base,size,dest=base - map hostmemory directly into the VM.",
 	      "Example: 'mio:0xa0000,0x10000'.")
 {
-  unsigned long size;
-  unsigned long dest = (argv[2] == ~0UL) ? argv[0] : argv[2];
+  size_t size;
+  uintptr_t dest = (argv[2] == ~0UL) ? argv[0] : argv[2];
   if ( argv[1] == ~0UL)
     size = 1;
   else

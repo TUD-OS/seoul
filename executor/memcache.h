@@ -81,15 +81,15 @@ public:
   struct CacheEntry
   {
     // the start address of this entry
-    unsigned _phys1;
-    unsigned _phys2;
+    uintptr_t _phys1;
+    uintptr_t _phys2;
     // 0 -> invalid, can be RAM up to 8k
     char *_ptr;
     // length of cache entry, this can be up to 8k long
-    unsigned _len;
+    size_t _len;
     // a pointer in a single linked list to an older entry in the set or ~0u at the end
     unsigned _older;
-    bool is_valid(unsigned long phys1, unsigned long phys2, unsigned len)
+    bool is_valid(uintptr_t phys1, uintptr_t phys2, size_t len)
     {
       if (!_ptr) return false;
       return _ptr && phys1 == _phys1 && len == _len && phys2 == _phys2;
@@ -123,8 +123,8 @@ private:
     assert(!(_buffers[index]._len & 3));
     assert(!(_buffers[index]._phys1 & 3));
 
-    unsigned long address = _buffers[index]._phys1;
-    for (unsigned i=0; i < _buffers[index]._len; i += 4) {
+    uintptr_t address = _buffers[index]._phys1;
+    for (size_t i=0; i < _buffers[index]._len; i += 4) {
       MessageMem msg2(read, address, reinterpret_cast<unsigned *>(_buffers[index].data + i));
       _mem.send(msg2, true);
       if ((address & 0xfff) != 0xffc)
@@ -188,7 +188,7 @@ public:
   /**
    * Get an entry from the cache or fetch one from memory.
    */
-  CacheEntry *get(unsigned long phys1, unsigned long phys2, unsigned len, Type type)
+  CacheEntry *get(uintptr_t phys1, uintptr_t phys2, size_t len, Type type)
   {
     assert(!(phys1 & 3));
     assert(!(len & 3));

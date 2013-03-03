@@ -45,15 +45,15 @@ class VirtualBiosReset : public StaticReceiver<VirtualBiosReset>, public BiosCom
 #define ACPI_MANUFACTURER "bk@vmmon"
 
   char     *_mem_ptr;
-  unsigned  _mem_size;
+  size_t    _mem_size;
 
   struct Resource {
     const char *name;
-    unsigned offset;
-    unsigned length;
+    size_t offset;
+    size_t length;
     bool     acpi_table;
     Resource() {}
-    Resource(const char *_name, unsigned _offset, unsigned _length, bool _acpi_table) : name(_name), offset(_offset), length(_length), acpi_table(_acpi_table)  {}
+    Resource(const char *_name, size_t _offset, size_t _length, bool _acpi_table) : name(_name), offset(_offset), length(_length), acpi_table(_acpi_table)  {}
   } _resources[MAX_RESOURCES];
 
 
@@ -151,7 +151,7 @@ class VirtualBiosReset : public StaticReceiver<VirtualBiosReset>, public BiosCom
 
 
 
-  unsigned alloc(unsigned size, unsigned alignment) {
+  size_t alloc(size_t size, size_t alignment) {
     if ((size + alignment + 0x1000) > _mem_size) return 0;
     _mem_size -= size;
     _mem_size &= ~alignment;
@@ -174,10 +174,10 @@ class VirtualBiosReset : public StaticReceiver<VirtualBiosReset>, public BiosCom
   unsigned acpi_tablesize(Resource *r) { return *reinterpret_cast<unsigned *>(_mem_ptr + r->offset + 4); }
 
 
-  void fix_acpi_checksum(Resource *r, unsigned length, unsigned chksum_offset = 9) {
+  void fix_acpi_checksum(Resource *r, size_t length, size_t chksum_offset = 9) {
     assert(r);
     char value = 0;
-    for (unsigned i=0; i < length && i < r->length; i++)
+    for (size_t i=0; i < length && i < r->length; i++)
       value += _mem_ptr[r->offset + i];
     _mem_ptr[r->offset + chksum_offset] -= value;
   }
@@ -204,7 +204,7 @@ class VirtualBiosReset : public StaticReceiver<VirtualBiosReset>, public BiosCom
       memset(_mem_ptr + _resources[index].offset, 0, _resources[index].length);
     }
     else if (!strcmp("ebda", name)) {
-      unsigned ebda;
+      size_t ebda;
       check1(false, !(ebda = alloc(SIZE_EBDA_KB << 10, 0x10)));
       _resources[index] = Resource(name, ebda, SIZE_EBDA_KB << 10, false);
       discovery_write_dw("bda", 0xe, ebda >> 4, 2);
@@ -222,7 +222,7 @@ class VirtualBiosReset : public StaticReceiver<VirtualBiosReset>, public BiosCom
     }
     else {
       // we create an ACPI table
-      unsigned table;
+      size_t table;
       check1(false, !(table = alloc(0x1000, 0x10)), "allocate ACPI table failed");
       _resources[index] = Resource(name, table, 0x1000, true);
       init_acpi_table(name);
@@ -268,11 +268,11 @@ public:
     case MessageDiscovery::WRITE:
       {
         Resource *r;
-        unsigned needed_len = msg.offset + msg.count;
+        size_t needed_len = msg.offset + msg.count;
         check1(false, !(r = get_resource(msg.resource)));
-        check1(false, needed_len > r->length, "WRITE no idea how to increase the table %s size from %d to %d", msg.resource, r->length, needed_len);
+        check1(false, needed_len > r->length, "WRITE no idea how to increase the table %s size from %lu to %lu", msg.resource, r->length, needed_len);
 
-        unsigned table_len = acpi_tablesize(r);
+        size_t table_len = acpi_tablesize(r);
         // increase the length of an ACPI table.
         if (r->acpi_table && msg.offset >= 8 && needed_len > table_len) {
           discovery_write_dw(r->name, 4, needed_len, 4);
@@ -287,9 +287,9 @@ public:
     case MessageDiscovery::READ:
       {
         Resource *r;
-        unsigned needed_len = msg.offset + 4;
+        size_t needed_len = msg.offset + 4;
         check1(false, !(r = get_resource(msg.resource)));
-        check1(false, needed_len > r->length, "READ no idea how to increase the table %s size from %d to %d", msg.resource, r->length, needed_len);
+        check1(false, needed_len > r->length, "READ no idea how to increase the table %s size from %lu to %lu", msg.resource, r->length, needed_len);
         memcpy(msg.dw, _mem_ptr + r->offset + msg.offset, 4);
       }
       break;

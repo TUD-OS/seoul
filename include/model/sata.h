@@ -24,6 +24,6 @@ class FisReceiver
   FisReceiver *_peer;
  public:
  FisReceiver() : _peer(0) {}
-  virtual void receive_fis(unsigned fislen, unsigned *fis) = 0;
+  virtual void receive_fis(size_t fislen, unsigned *fis) = 0;
   void set_peer(FisReceiver *peer) { _peer = peer; }
 };

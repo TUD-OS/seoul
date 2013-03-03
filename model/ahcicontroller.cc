@@ -61,9 +61,9 @@ public:
   /**
    * Receive a FIS from the Device.
    */
-  void receive_fis(unsigned fislen, unsigned *fis)
+  void receive_fis(size_t fislen, unsigned *fis)
   {
-    unsigned copy_offset;
+    size_t copy_offset;
 
     // fis receiving enabled?
     // XXX bug in 2.6.27?
@@ -304,7 +304,7 @@ class AhciController : public ParentIrqProvider,
 #define  REGBASE "../model/ahcicontroller.cc"
 #include "model/reg.h"
 
-  bool match_bar(unsigned long &address) {
+  bool match_bar(uintptr_t &address) {
     bool res = !((address ^ PCI_ABAR) & PCI_ABAR_mask);
     address &= ~PCI_ABAR_mask;
     return res;
@@ -336,7 +336,7 @@ class AhciController : public ParentIrqProvider,
 
   bool receive(MessageMem &msg)
   {
-    unsigned long addr = msg.phys;
+    uintptr_t addr = msg.phys;
     if (!match_bar(addr) || !(PCI_CMD_STS & 0x2))
       return false;
 

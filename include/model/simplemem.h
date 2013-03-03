@@ -23,7 +23,7 @@ DBus<MessageMem>        *_bus_mem;
 /**
  * Fast copy/inout version that only copies to mem-regions but not registers.
  */
-bool copy_inout(unsigned long address, void *ptr, unsigned count, bool read)
+bool copy_inout(uintptr_t address, void *ptr, size_t count, bool read)
 {
   MessageMemRegion msg(address >> 12);
   if (!_bus_memregion->send(msg) || !msg.ptr || ((address + count) > ((msg.start_page + msg.count) << 12))) return false;
@@ -37,7 +37,7 @@ bool copy_inout(unsigned long address, void *ptr, unsigned count, bool read)
 /**
  * Copy from buffer to the guest.
  */
-bool copy_out(unsigned long address, void *ptr, unsigned count)
+bool copy_out(uintptr_t address, void *ptr, size_t count)
 {
   if (copy_inout(address, ptr, count, false)) return true;
   char *p = reinterpret_cast<char *>(ptr);
@@ -77,7 +77,7 @@ bool copy_out(unsigned long address, void *ptr, unsigned count)
 /**
  * Copy from the guest to a buffer.
  */
-bool copy_in(unsigned long address, void *ptr, unsigned count)
+bool copy_in(uintptr_t address, void *ptr, size_t count)
 {
   if (copy_inout(address, ptr, count, true)) return true;
   char *p = reinterpret_cast<char *>(ptr);
