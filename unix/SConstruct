@@ -1,21 +1,46 @@
 # -*- Mode: Python -*-
 
+import platform
+
+print("Use 'scons -h' to show build help.")
+
+Help("""
+Usage: scons [debug=0/1] [cc=C compiler] [cxx=C++ compiler] [target=ARCH]
+
+debug=0/1        Build a debug version, if debug=1. Default is 1.
+cc/cxx=COMPILER  Force build to use a specific C/C++ compiler
+target=ARCH      Force build for a specific architecture. (x86_64 or x86_32)
+""")
+
+
+if platform.machine() in ['x86_64', 'amd64']:
+    host_arch = 'x86_64'
+else:
+    host_arch = 'x86_32'
+
+target_arch = ARGUMENTS.get('target')
+if not target_arch:
+    target_arch = host_arch
+
+
 env = Environment(CPPPATH = ['../include', "include"],
-                  LINKFLAGS = '-m32 -g -pthread ',
-                  CCFLAGS = '-march=native -m32 -g -O1 -fno-strict-aliasing -Wall -Wextra -Wno-unused-parameter -Wno-parentheses -pthread',
+                  LINKFLAGS = '-g',
+                  CCFLAGS = ' -march=native -g -fno-strict-aliasing -Wall -Wextra -Wno-unused-parameter -Wno-parentheses',
                   CXXFLAGS = '-std=gnu++11 -fno-rtti -fno-exceptions')
+
+if target_arch == 'x86_32':
+    env.Append(CPPFLAGS = ' -m32 ', LINKFLAGS = ' -m32 ')
+else:
+    env.Append(CPPFLAGS = ' -m64 ', LINKFLAGS = ' -m64 ')
 
 cc   = ARGUMENTS.get('cc')
 cxx  = ARGUMENTS.get('cxx')
 
 if cc:
-    print("CC forced to '%s'." % cc)
     env['CC'] = cc
 
 if cxx:
-    print("CXX forced to '%s'." % cxx)
     env['CXX'] = cxx
-
 
 # Add flag to env[key] if the compiler is able to build an object file
 # with this. extension can be '.c' or '.cc'.
@@ -31,7 +56,7 @@ def AddOptionalFlag(context, extension, key, flag):
 
 conf = Configure(env, custom_tests = {'AddOptionalFlag' : AddOptionalFlag})
 
-conf.AddOptionalFlag('.cc', 'CCFLAGS', '-Wno-constant-logical-operand')
+#conf.AddOptionalFlag('.cc', 'CCFLAGS', '-Wno-constant-logical-operand')
 
 # Link with rt library when needed.
 if not conf.CheckFunc('timer_create'):
@@ -56,42 +81,52 @@ for f in ['mmio', 'pci']:
     env.Command('../include/model/intel82576vf%s.inc' % f, ['../model/intel82576vf/genreg.py', '../model/intel82576vf/reg_%s.py' % f],
                      '${SOURCES[0]} ${SOURCES[1:]} ${TARGET}')
 
-seoul = env.Program('seoul',
-                    [
-                     '../model/memorycontroller.cc',
-                     '../model/nullio.cc',
-                     '../model/pic8259.cc',
-                     '../model/pit8254.cc',
-                     '../model/sysctrlport.cc',
-                     '../model/keyboardcontroller.cc',
-                     '../model/ps2keyboard.cc',
-                     '../model/ps2mouse.cc',
-                     '../model/rtc146818.cc',
-                     '../model/serial16550.cc',
-                     '../model/sink.cc',
-                     '../model/vga.cc',
-                     '../model/intel82576vf.cc',
-                     '../model/rtl8029.cc',
-                     '../model/ahcicontroller.cc',
-                     '../model/satadrive.cc',
-                     '../executor/vbios_disk.cc',
-                     '../executor/vbios_keyboard.cc',
-                     '../executor/vbios_mem.cc',
-                     '../executor/vbios_multiboot.cc',
-                     '../executor/vbios_reset.cc',
-                     '../executor/vbios_time.cc',
-                     '../model/ioapic.cc',
-                     '../model/pcihostbridge.cc',
-                     '../model/pmtimer.cc',
-                     '../model/vcpu.cc',
-                     '../model/vbios.cc',
-                     '../model/lapic.cc',
-                     '../model/msi.cc',
-                     '../executor/halifax.cc',
-                     '../host/hostkeyboard.cc',
-                     ] +
-                    Glob('*.cc'))
+debug = ARGUMENTS.get('debug',0)
 
+halifaxenv = env.Clone()
+# Halifax does not build with disabled optimizations, because it
+# relies on the compiler not generating code where it shouldn't.
+halifaxenv.Append(CXXFLAGS = ' -O3' if not debug else ' -O1')
+halifax = halifaxenv.Object('../executor/halifax.cc')
+
+env.Append(CXXFLAGS = ' -O3' if not debug else ' -O0')
+
+sources = Glob('*.cc') + [            # Unix frontend
+      '../model/memorycontroller.cc', # Rest is Vancouver code
+      '../model/nullio.cc',
+      '../model/pic8259.cc',
+      '../model/pit8254.cc',
+      '../model/sysctrlport.cc',
+      '../model/keyboardcontroller.cc',
+      '../model/ps2keyboard.cc',
+      '../model/ps2mouse.cc',
+      '../model/rtc146818.cc',
+      '../model/serial16550.cc',
+      '../model/sink.cc',
+      '../model/vga.cc',
+      '../model/rtl8029.cc',
+      '../model/ahcicontroller.cc',
+      '../model/satadrive.cc',
+      '../executor/vbios_disk.cc',
+      '../executor/vbios_keyboard.cc',
+      '../executor/vbios_mem.cc',
+      '../executor/vbios_multiboot.cc',
+      '../executor/vbios_reset.cc',
+      '../executor/vbios_time.cc',
+      '../model/ioapic.cc',
+      '../model/pcihostbridge.cc',
+      '../model/pmtimer.cc',
+      '../model/vcpu.cc',
+      '../model/vbios.cc',
+      '../model/lapic.cc',
+      '../model/msi.cc',
+      '../host/hostkeyboard.cc',
+      ]
+# TODO not yet ported
+if target_arch == 'x86_32':
+        sources += [ '../model/intel82576vf.cc' ]
+
+seoul = env.Program('seoul', sources + halifax, LIBS = ['pthread', 'rt'])
 Default(seoul)
 
 # EOF
