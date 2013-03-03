@@ -304,7 +304,7 @@ opcodes += [
     ("nopl (%eax)",  ["NO_OS", "SKIPMODRM", "MODRM", "DROP1"], [" "]),
     ("lahf",  ["NO_OS"], ["cache->_cpu->ah = (cache->_cpu->efl & 0xd5) | 2"]),
     ("sahf",  ["NO_OS"], ["cache->_cpu->efl = (cache->_cpu->efl & ~0xd5) | (cache->_cpu->ah  & 0xd5)"]),
-    ("clflush", ["ASM", "BYTE"], ["clflush (%ecx)"]),
+    ("clflush", ["ASM", "BYTE"], [""]),
     ]
 opcodes += [(x, ["ASM", "EAX", "NO_OS", x in ["aaa", "aas"] and "LOADFLAGS", "SAVEFLAGS"],
 	     ["#ifdef __x86_64__\n\tLogging::panic(\"Unable to execute '" + x + "'\\n\");\n#else\n\tasm volatile(\"mov (%%\" EXPAND(REG(cx)) \"), %%eax;" + x + ";mov %%eax, (%%\" EXPAND(REG(cx)) \")\" : \"+d\"(tmp_src), \"+c\"(tmp_dst) : : \"eax\");\n#endif\n"])
