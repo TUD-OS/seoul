@@ -225,7 +225,9 @@ static void *vcpu_thread_fn(void *arg)
   CpuState cpu_state;
   memset(&cpu_state, 0, sizeof(cpu_state));
 
+  pthread_mutex_lock(&irq_mtx);
   handle_vcpu(false, CpuMessage::TYPE_HLT, vcpu, &cpu_state);
+  pthread_mutex_unlock(&irq_mtx);
 
   while (true) {
     pthread_mutex_lock(&irq_mtx);
