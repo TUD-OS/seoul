@@ -47,6 +47,8 @@
 
 #include <vector>
 
+#include <seoul/unix.h>
+
 const char version_str[] =
 #include "version.inc"
   ;
@@ -161,8 +163,8 @@ struct Disk {
 
 static std::vector<Disk> disks;
 
-// Used to serialize all operations (for now)
-static sem_t vcpu_sem;
+// Used to serialize all operations (for now).
+pthread_mutex_t irq_mtx;
 
 static void skip_instruction(CpuMessage &msg)
 {
@@ -226,9 +228,10 @@ static void *vcpu_thread_fn(void *arg)
   handle_vcpu(false, CpuMessage::TYPE_HLT, vcpu, &cpu_state);
 
   while (true) {
-    sem_wait(&vcpu_sem);
+    pthread_mutex_lock(&irq_mtx);
     handle_vcpu(false, CpuMessage::TYPE_SINGLE_STEP, vcpu, &cpu_state);
-    sem_post(&vcpu_sem);
+    // Logging::printf("eip %x\n", cpu_state.eip);
+    pthread_mutex_unlock(&irq_mtx);
   }
 
   // NOTREACHED
@@ -273,13 +276,14 @@ static bool receive(Device *, MessageHostOp &msg)
         res = false;
         break;
       }
+      pthread_setname_np(vcpu_info[msg.value].tid, "vcpu");
 
       break;
     }
     case MessageHostOp::OP_VCPU_BLOCK:
-      sem_post(&vcpu_sem);
+      pthread_mutex_unlock(&irq_mtx);
       sem_wait(&vcpu_info[msg.value].block);
-      sem_wait(&vcpu_sem);
+      pthread_mutex_lock(&irq_mtx);
       break;
     case MessageHostOp::OP_VCPU_RELEASE:
       sem_post(&vcpu_info[msg.value].block);
@@ -366,10 +370,10 @@ static void timeout_request()
 
 static void timeout_handler_fn(union sigval)
 {
-  sem_wait(&vcpu_sem);
+  pthread_mutex_lock(&irq_mtx);
   timeout_trigger();
   timeout_request();
-  sem_post(&vcpu_sem);
+  pthread_mutex_unlock(&irq_mtx);
 }
 
 static bool receive(Device *, MessageTimer &msg)
@@ -422,9 +426,9 @@ static void *network_io_thread_fn(void *)
     printf("tap: read %u bytes.\n", res);
     MessageNetwork msg(network_pbuf, res, 0);
 
-    sem_wait(&vcpu_sem);
+    pthread_mutex_lock(&irq_mtx);
     mb.bus_network.send(msg);
-    sem_post(&vcpu_sem);
+    pthread_mutex_unlock(&irq_mtx);
   }
 
   return nullptr;
@@ -583,10 +587,11 @@ int main(int argc, char **argv)
   mb.bus_disk   .add(nullptr, receive);
 
   // Synchronization initialization
-  if (0 != sem_init(&vcpu_sem, 0, 0)) {
-    perror("sem_init");
+  if (0 != pthread_mutex_init(&irq_mtx, nullptr)) {
+    perror("pthread_mutex_init");
     return EXIT_FAILURE;
   }
+  pthread_mutex_lock(&irq_mtx);
 
   // Create standard PC
   for (const char **dev = pc_ps2; *dev != NULL; dev++) {
@@ -628,10 +633,11 @@ int main(int argc, char **argv)
       perror("pthread_create");
       return EXIT_FAILURE;
     }
+    pthread_setname_np(iothread, "io");
   }
 
   Logging::printf("Virtual CPUs starting.\n");
-  sem_post(&vcpu_sem);
+  pthread_mutex_unlock(&irq_mtx);
 
   // Waiting for CPUs to exit.
   for (Vcpu_info &i : vcpu_info)

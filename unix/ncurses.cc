@@ -17,12 +17,15 @@
  */
 
 #include <nul/motherboard.h>
+#include <nul/vcpu.h>
 #include <host/screen.h>
 #include <vector>
 #include <curses.h>
 #include <pthread.h>
 #include <unistd.h>
 #include <sys/time.h>
+
+#include <seoul/unix.h>
 
 class NcursesDisplay : public StaticReceiver<NcursesDisplay> {
   struct View {
@@ -37,10 +40,10 @@ class NcursesDisplay : public StaticReceiver<NcursesDisplay> {
 
   };
 
-  std::vector<View> views;
-  unsigned          current_view;
-  double            boot_time;
-  double            bar_time;
+  Motherboard          &mb;
+  std::vector<View>     views;
+  unsigned              current_view;
+  double                boot_time;
 
   double now()
   {
@@ -49,22 +52,11 @@ class NcursesDisplay : public StaticReceiver<NcursesDisplay> {
     return double(tv.tv_sec) + double(tv.tv_usec)/1000000;
   }
 
-  bool should_render_bar()
-  {
-    return now() < bar_time;
-  }
-
-  // Toggle the bar for a couple of seconds.
-  void show_bar()
-  {
-    clear();
-    bar_time = now() + 5;
-  }
 
   void render_bar()
   {
     color_set(0x70, 0);
-    mvprintw(24, 0, "%s: VM running %lus. Navigate using arrow keys. Quit with q. ",
+    mvprintw(25, 0, "%s: VM running %lus. Navigate using arrow keys. Quit with q. ",
              (views.size() and current_view < views.size()) ?
              views[current_view].name : "???",
              static_cast<unsigned long>(now() - boot_time));
@@ -121,37 +113,50 @@ class NcursesDisplay : public StaticReceiver<NcursesDisplay> {
 
     clear();
     while (true) {
-      bool bar = should_render_bar();
       for (unsigned y = 0; y < 25; y ++)
-        if ((y == 24) and bar)
-          render_bar();
-        else
-          render_line(y);
-
+        render_line(y);
+      render_bar();
       refresh();
       switch (getch()) {
       case 'q':
         goto done;
+      case KEY_HOME: {
+        MessageConsole msg(MessageConsole::TYPE_RESET);
+        pthread_mutex_lock(&irq_mtx);
+        mb.bus_console.send(msg);
+        pthread_mutex_unlock(&irq_mtx);
+      }
+        break;
+
+      case KEY_F(12): {
+        pthread_mutex_lock(&irq_mtx);
+        CpuEvent msg(VCpu::EVENT_DEBUG);
+        for (VCpu *vcpu = mb.last_vcpu; vcpu; vcpu=vcpu->get_last())
+          vcpu->bus_event.send(msg);
+        pthread_mutex_unlock(&irq_mtx);
+      }
+        break;
+
       case KEY_LEFT:
       case KEY_UP:
         if (current_view) current_view --;
-        show_bar();
         break;
       case KEY_RIGHT:
       case KEY_DOWN:
         if (views.size())
           if (current_view < views.size() - 1)
             current_view ++;
-        show_bar();
         break;
       case ERR:
-        break;
       default:
-        show_bar();
+        break;
       }
     }
   done:
     endwin();
+
+    // XXX Not the nice way...
+    exit(EXIT_SUCCESS);
   }
 
 public:
@@ -171,7 +176,6 @@ public:
       case MessageConsole::TYPE_ALLOC_VIEW:
         assert(msg.ptr and msg.regs);
         current_view = msg.view = views.size();;
-        show_bar();
         views.push_back(View(msg.name, msg.ptr, msg.size, msg.regs));
         return true;
       case MessageConsole::TYPE_SWITCH_VIEW:
@@ -190,7 +194,8 @@ public:
     return false;
   }
 
-  NcursesDisplay() : current_view(0) {
+  NcursesDisplay(Motherboard &mb)
+    : mb(mb), current_view(0) {
     boot_time = now();
   }
 };
@@ -199,7 +204,7 @@ public:
 PARAM_HANDLER(ncurses,
               "ncurses - ncurses display")
 {
-  NcursesDisplay *d = new NcursesDisplay;
+  NcursesDisplay *d = new NcursesDisplay(mb);;
 
   mb.bus_console.add(d, NcursesDisplay::receive_static<MessageConsole>);
 
