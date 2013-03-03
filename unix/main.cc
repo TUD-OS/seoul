@@ -321,27 +321,6 @@ static bool receive(Device *, MessageHostOp &msg)
     return res;
 }
 
-// Update or program pending timeout.
-static void timeout_request()
-{
-  if (timeouts.timeout() != ~0ULL) {
-    timevalue next_to = timeouts.timeout();
-    if (next_to != last_to) {
-      last_to = next_to;
-
-      unsigned long long delta = mb_clock.delta(next_to, 1000000000UL);
-
-      //printf("Programming timer for %lluns.\n", delta);
-
-      struct itimerspec t = {
-        .it_interval = {0, 0},
-        .it_value = {long(delta / 1000000000L), (long)(delta % 1000000000L)}
-      };
-      int res = timer_settime(timer_id, 0, &t, NULL);
-      assert(!res);
-    }
-  }
-}
 
 static void timeout_trigger()
 {
@@ -360,6 +339,35 @@ static void timeout_trigger()
   }
 }
 
+// Update or program pending timeout.
+static void timeout_request()
+{
+  timevalue next_to = timeouts.timeout();
+  if (next_to != ~0ULL) {
+    unsigned long long delta = mb_clock.delta(next_to, 1000000000UL);
+
+    if (delta == 0) {
+      // Timeout pending NOW. Skip programming a timeout.
+      timeout_trigger();
+
+      // We might have a new timeout pending.
+      timeout_request();
+    } else if (next_to != last_to) {
+      // New timeout. Reprogram timer.
+
+      last_to = next_to;
+
+      // Logging::printf("Programming timer for %lluns.\n", delta);
+
+      struct itimerspec t = {
+        .it_interval = {0, 0},
+        .it_value = {long(delta / 1000000000L), (long)(delta % 1000000000L)}
+      };
+      int res = timer_settime(timer_id, 0, &t, NULL);
+      assert(!res);
+    }
+  }
+}
 
 static void timeout_handler_fn(union sigval)
 {
