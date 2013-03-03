@@ -352,7 +352,7 @@ class AhciController : public ParentIrqProvider,
       return false;
 
     if (res && msg.read)  *msg.ptr = uvalue;
-    else if (!res)  Logging::printf("%s(%lx) %s failed\n", __PRETTY_FUNCTION__, addr, msg.read ? "read" : "write");
+    else if (!res)  Logging::printf("%s(%zx) %s failed\n", __PRETTY_FUNCTION__, size_t(addr), msg.read ? "read" : "write");
     return true;
   }
 

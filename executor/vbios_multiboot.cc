@@ -105,7 +105,7 @@ private:
 	offset = (offset + 0xfff) & ~0xffful;
 	MessageHostOp msg2(modcount + 1, physmem + offset, msg1.len - offset);
 	if (!(_mb.bus_hostop.send(msg2)) || !msg2.size)  break;
-	Logging::printf("\tmodule %x start %p+%lx cmdline %40s\n", modcount, msg2.start, msg2.size, msg2.cmdline);
+	Logging::printf("\tmodule %x start %p+%zx cmdline %40s\n", modcount, msg2.start, msg2.size, msg2.cmdline);
 	switch(modcount)
 	  {
 	  case 0:
@@ -162,8 +162,8 @@ private:
   bool  receive(MessageBios &msg) {
 
     if (msg.irq != 0x19) return false;
-    Logging::printf(">\t%s rip %x ilen %lx cr0 %lx efl %x\n", __PRETTY_FUNCTION__,
-		    msg.cpu->eip, msg.cpu->inst_len, msg.cpu->cr0, msg.cpu->efl);
+    Logging::printf(">\t%s rip %x ilen %zx cr0 %zx efl %zx\n", __PRETTY_FUNCTION__,
+		    msg.cpu->eip, size_t(msg.cpu->inst_len), size_t(msg.cpu->cr0), size_t(msg.cpu->efl));
 
     long long tsc_off = msg.cpu->tsc_off;
     uintptr_t rip = 0xfffffff0;

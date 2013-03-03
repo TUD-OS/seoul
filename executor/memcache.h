@@ -208,7 +208,7 @@ public:
        */
       bool supported = true;
       if (phys2 != ~0xffful && (((phys1 >> 12) + 1) != (phys2 >> 12))) {
-	Logging::printf("joining two non-adjunct pages %lx,%lx is not supported\n", phys1 >> 12, phys2 >> 12);
+	Logging::printf("joining two non-adjunct pages %zx,%zx is not supported\n", size_t(phys1 >> 12), size_t(phys2 >> 12));
 	supported = false;
       }
 

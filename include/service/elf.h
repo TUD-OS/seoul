@@ -78,7 +78,7 @@ struct Elf
 	  check1(8, magic != *reinterpret_cast<unsigned long long *>(module + ph->p_offset), "wrong file: magic %llx vs %llx", magic, *reinterpret_cast<unsigned long long *>(module + ph->p_offset));
 	  magic = 0;
 	}
-	check1(9, !(mem_size >= ph->p_paddr + ph->p_memsz - mem_offset), "elf section out of memory %lx vs %x ofs %lx", mem_size, ph->p_paddr + ph->p_memsz, mem_offset);
+	check1(9, !(mem_size >= ph->p_paddr + ph->p_memsz - mem_offset), "elf section out of memory %zx vs %x ofs %zx", mem_size, ph->p_paddr + ph->p_memsz, mem_offset);
 	memcpy(phys_mem + ph->p_paddr - mem_offset, module + ph->p_offset, ph->p_filesz);
 	memset(phys_mem + ph->p_paddr - mem_offset + ph->p_filesz, 0, ph->p_memsz - ph->p_filesz);
 	if (maxptr < ph->p_memsz + ph->p_paddr - mem_offset)

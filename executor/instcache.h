@@ -530,8 +530,8 @@ public:
 	else
 	  {
 	    _mtr_out |= MTD_INJ;
-	    Logging::printf("fault: %x old %x error %x cr2 %lx at eip %x line %d %lx\n", _fault, _cpu->inj_info,
-			    _error_code, _cpu->cr2, _cpu->eip, _debug_fault_line, _cpu->cr2);
+	    Logging::printf("fault: %x old %x error %x cr2 %zx at eip %x line %d %zx\n", _fault, _cpu->inj_info,
+			    _error_code, size_t(_cpu->cr2), _cpu->eip, _debug_fault_line, size_t(_cpu->cr2));
 	    // consolidate two exceptions
 
 	    // triple fault ?

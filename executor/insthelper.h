@@ -54,7 +54,7 @@ int cpl0_test() {
     fault |= ~desc->ar & 0x80 || !write && ((desc->ar & 0xa) == 0x8) || write && (desc->ar & 0xa) != 0x2;
     if (fault)
       {
-	Logging::printf("%s() #%lx %x+%d desc %x limit %x base %lx esp %x\n", __func__, desc - &_cpu->es, virt, length, desc->ar, desc->limit, desc->base, _cpu->esp);
+	Logging::printf("%s() #%zx %x+%d desc %x limit %x base %zx esp %x\n", __func__, size_t(desc - &_cpu->es), virt, length, desc->ar, desc->limit, size_t(desc->base), _cpu->esp);
 	if (desc == &_cpu->ss) {  SS0; } else { GP0; }
       }
 
@@ -505,7 +505,7 @@ int load_idt_descriptor(Descriptor &desc, unsigned event)
     memcpy(desc.values, res, 8);
     // is it a trap, intr or task-gate?
     if (!(0xce00 & (1<<(desc.ar0 & 0x1f)))) {
-      Logging::panic("%s event %x %x base %lx limit %x cr0 %lx\n", __func__, event, desc.ar0, _cpu->id.base, _cpu->id.limit, _cpu->cr0);
+      Logging::panic("%s event %x %x base %zx limit %x cr0 %zx\n", __func__, event, desc.ar0, size_t(_cpu->id.base), _cpu->id.limit, size_t(_cpu->cr0));
       GP(error);
     }
     // and present?
@@ -603,7 +603,7 @@ int set_segment(CpuState::Descriptor *seg, unsigned short sel, bool cplcheck = t
 	  if ((is_ss && ((rpl != desc.dpl() || cplcheck && desc.dpl() != _cpu->cpl()) || ((desc.ar0 & 0x1a) != 0x12)))
 	      || !is_ss && ((((desc.ar0 ^ 0x12) & 0x1a) > 2) || (((desc.ar0 & 0xc) != 0xc) && (rpl > desc.dpl() || cplcheck && _cpu->cpl() > desc.dpl()))))
 	    {
-	      Logging::printf("set_segment %lx sel %x eip %x efl %x ar %x dpl %x rpl %x cpl %x\n", seg - &_cpu->es, sel, _cpu->eip, _cpu->efl, desc.ar0, desc.dpl(), rpl, _cpu->cpl());
+	      Logging::printf("set_segment %zx sel %x eip %x efl %x ar %x dpl %x rpl %x cpl %x\n", size_t(seg - &_cpu->es), sel, _cpu->eip, _cpu->efl, desc.ar0, desc.dpl(), rpl, _cpu->cpl());
 	      GP(sel);
 	    }
 	  if (~desc.ar0 & 0x80) is_ss ? (SS(sel)) : (NP(sel));

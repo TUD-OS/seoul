@@ -133,7 +133,7 @@ class SataDrive : public FisReceiver, public StaticReceiver<SataDrive>
   {
     if (!_dsf[3]) return 0;
     uintptr_t prdbase = union64(_dsf[2], _dsf[1]);
-    Logging::printf("push data %x prdbase %lx _dsf %x %x %x\n", length, prdbase, _dsf[1], _dsf[2], _dsf[3]);
+    Logging::printf("push data %zx prdbase %zx _dsf %x %x %x\n", length, size_t(prdbase), _dsf[1], _dsf[2], _dsf[3]);
     size_t prd = 0;
     size_t offset = 0;
     while (offset < length && prd < _dsf[3])
@@ -406,7 +406,7 @@ class SataDrive : public FisReceiver, public StaticReceiver<SataDrive>
   SataDrive(DBus<MessageDisk> &bus_disk, DBus<MessageMemRegion> *bus_memregion, DBus<MessageMem> *bus_mem, unsigned hostdisk, DiskParameter params)
     : _bus_memregion(bus_memregion), _bus_mem(bus_mem), _bus_disk(bus_disk), _hostdisk(hostdisk), _multiple(0), _ctrl(0), _params(params)
   {
-    Logging::printf("SATA disk %x flags %x sectors %llx\n", hostdisk, _params.flags, _params.sectors);
+    Logging::printf("SATA disk %x flags %x sectors %zx\n", hostdisk, _params.flags, size_t(_params.sectors));
   }
 };
 

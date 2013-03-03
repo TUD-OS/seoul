@@ -64,7 +64,7 @@ PARAM_HANDLER(mem,
     Logging::panic("%s failed to get physical memory\n", __PRETTY_FUNCTION__);
   uintptr_t start = ~argv[0] ? argv[0] : 0;
   uintptr_t end   = argv[1] > msg.len ? msg.len : argv[1];
-  Logging::printf("physmem: %lx [%lx, %lx]\n", msg.value, start, end);
+  Logging::printf("physmem: %zx [%zx, %zx]\n", size_t(msg.value), start, end);
   MemoryController *dev = new MemoryController(msg.ptr, start, end);
   // physmem access
   mb.bus_mem.add(dev,       MemoryController::receive_static<MessageMem>);

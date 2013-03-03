@@ -270,7 +270,7 @@ public:
         Resource *r;
         size_t needed_len = msg.offset + msg.count;
         check1(false, !(r = get_resource(msg.resource)));
-        check1(false, needed_len > r->length, "WRITE no idea how to increase the table %s size from %lu to %lu", msg.resource, r->length, needed_len);
+        check1(false, needed_len > r->length, "WRITE no idea how to increase the table %s size from %zu to %zu", msg.resource, r->length, needed_len);
 
         size_t table_len = acpi_tablesize(r);
         // increase the length of an ACPI table.
@@ -289,7 +289,7 @@ public:
         Resource *r;
         size_t needed_len = msg.offset + 4;
         check1(false, !(r = get_resource(msg.resource)));
-        check1(false, needed_len > r->length, "READ no idea how to increase the table %s size from %lu to %lu", msg.resource, r->length, needed_len);
+        check1(false, needed_len > r->length, "READ no idea how to increase the table %s size from %zu to %zu", msg.resource, r->length, needed_len);
         memcpy(msg.dw, _mem_ptr + r->offset + msg.offset, 4);
       }
       break;

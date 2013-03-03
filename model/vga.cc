@@ -132,7 +132,7 @@ class Vga : public StaticReceiver<Vga>, public BiosCommon
 
 	  // copy in the tag
 	  copy_in(cpu->es.base + cpu->di, &v, 4);
-	  Logging::printf("VESA %x tag %x base %lx+%x esi %x\n", cpu->eax, v.tag, cpu->es.base, cpu->di, cpu->esi);
+	  Logging::printf("VESA %x tag %x base %zx+%x esi %x\n", cpu->eax, v.tag, size_t(cpu->es.base), cpu->di, cpu->esi);
 
 	  // we support VBE 2.0
 	  v.version = 0x0200;
@@ -178,7 +178,7 @@ class Vga : public StaticReceiver<Vga>, public BiosCommon
 	  if (index != ~0u && info.attr & 1)
 	    {
 	      // ok, we have the mode -> set it
-	      Logging::printf("VESA %x base %lx+%x esi %x mode %x\n", cpu->eax, cpu->es.base, cpu->di, cpu->esi, index);
+	      Logging::printf("VESA %x base %zx+%x esi %x mode %x\n", cpu->eax, size_t(cpu->es.base), cpu->di, cpu->esi, index);
 
 	      // clear buffer
 	      if (~cpu->ebx & 0x8000)  memset(_framebuffer_ptr, 0, _framebuffer_size);
@@ -537,7 +537,7 @@ public:
     if (!mb.bus_console.send(msg))
       Logging::panic("could not alloc a VGA backend");
     _view = msg.view;
-    Logging::printf("VGA console %lx+%lx %p\n", _framebuffer_phys, _framebuffer_size, _framebuffer_ptr);
+    Logging::printf("VGA console %zx+%zx %p\n", size_t(_framebuffer_phys), _framebuffer_size, _framebuffer_ptr);
 
     // switch to our console
     msg.type = MessageConsole::TYPE_SWITCH_VIEW;
@@ -567,7 +567,7 @@ PARAM_HANDLER(vga,
   MessageHostOp msg(MessageHostOp::OP_ALLOC_FROM_GUEST, fbsize);
   MessageHostOp msg2(MessageHostOp::OP_GUEST_MEM, 0UL);
   if (!mb.bus_hostop.send(msg) || !mb.bus_hostop.send(msg2))
-    Logging::panic("%s failed to alloc %ld from guest memory\n", __PRETTY_FUNCTION__, fbsize);
+    Logging::panic("%s failed to alloc %zd from guest memory\n", __PRETTY_FUNCTION__, fbsize);
 
   Vga *dev = new Vga(mb, argv[0], msg2.ptr + msg.phys, msg.phys, fbsize);
   mb.bus_ioin     .add(dev, Vga::receive_static<MessageIOIn>);

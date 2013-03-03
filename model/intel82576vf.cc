@@ -838,7 +838,7 @@ public:
       return false;
     }
 
-    Logging::printf("82576VF MAP %lx+%x from %p\n", msg.page, msg.count, msg.ptr);
+    Logging::printf("82576VF MAP %zx+%zx from %p\n", size_t(msg.page), msg.count, msg.ptr);
     return true;
   }
 
