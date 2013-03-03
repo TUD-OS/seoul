@@ -83,15 +83,15 @@ for f in ['mmio', 'pci']:
     env.Command('../include/model/intel82576vf%s.inc' % f, ['../model/intel82576vf/genreg.py', '../model/intel82576vf/reg_%s.py' % f],
                      '${SOURCES[0]} ${SOURCES[1:]} ${TARGET}')
 
-debug = ARGUMENTS.get('debug',0)
+debug = int(ARGUMENTS.get('debug', 1))
 
 halifaxenv = env.Clone()
 # Halifax does not build with disabled optimizations, because it
 # relies on the compiler not generating code where it shouldn't.
-halifaxenv.Append(CXXFLAGS = ' -O3' if not debug else ' -O1')
+halifaxenv.Append(CCFLAGS = ' -O3' if not debug else ' -O1')
 halifax = halifaxenv.Object('../executor/halifax.cc')
 
-env.Append(CXXFLAGS = ' -O3' if not debug else ' -O0')
+env.Append(CCFLAGS = ' -O3' if not debug else ' -O0')
 
 
 sources = Glob('*.cc') + [            # Unix frontend
