@@ -27,6 +27,7 @@
 #include <nul/motherboard.h>
 #include <nul/vcpu.h>
 #include <service/profile.h>
+#include <host/dma.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -35,6 +36,7 @@
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/select.h>
 #include <time.h>
 #include <signal.h>
 #include <fcntl.h>
@@ -53,8 +55,13 @@ const char version_str[] =
 
 static char  *ram;
 static size_t ram_size = 128 << 20; // 128 MB
+static int    tap_fd;               // TAP device. If 0, network packets go to /dev/null.
 
 static const char *pc_ps2[] = {
+  // Unix backend
+  "ncurses",
+  "logging",
+  // Models
   "mem:0,0xa0000",
   "mem:0x100000",
   "nullio:0x80",
@@ -73,6 +80,9 @@ static const char *pc_ps2[] = {
   "msi",
   "ioapic",
   "pcihostbridge:0,0x10,0xcf8,0xe0000000",
+  // "intel82576vf",
+  "rtl8029:,9,0x300",
+  "ahci:0xe0800000,14",
   "pmtimer:0x8000",
   // 1 vCPU
   "vcpu", "halifax", "vbios", "lapic",
@@ -88,6 +98,8 @@ static timer_t               timer_id;
 
 static Clock                 mb_clock(1000000);   // XXX Use correct frequency
 static Motherboard           mb(&mb_clock, NULL);
+
+// Multiboot module data
 
 struct Module {
   char       *memory;
@@ -120,10 +132,37 @@ struct Module {
   }
 };
 
-static std::vector<Module>   modules;
+static std::vector<Module> modules;
+
+// Disk data
+
+struct Disk {
+  const char *name;
+  int         fd;
+  size_t      size;
+
+  static Disk from_file(const char *filename)
+  {
+    Disk d;
+    struct stat st;
+
+    d.name = filename;
+    if (0  > (d.fd = open(filename, O_RDWR)) or
+        0 != fstat(d.fd, &st)) {
+      perror("open disk"); exit(EXIT_FAILURE);
+    }
+
+    d.size = (st.st_size + 511) & ~511; // Round to sector size
+
+    printf("Added '%s' (%zu bytes) as disk.\n", filename, d.size);
+    return d;
+  }
+};
+
+static std::vector<Disk> disks;
 
 // Used to serialize all operations (for now)
-static sem_t                 vcpu_sem;
+static sem_t vcpu_sem;
 
 static void skip_instruction(CpuMessage &msg)
 {
@@ -361,35 +400,118 @@ static bool receive(Device *, MessageTime &msg)
   return true;
 }
 
-static unsigned num_views = 0;
+// Network support
 
-static bool receive(Device *, MessageConsole &msg)
+static unsigned char network_pbuf[2048];
+
+static void *network_io_thread_fn(void *)
 {
-  switch (msg.type)
-    {
-    case MessageConsole::TYPE_ALLOC_CLIENT:
-      Logging::panic("console: ALLOC_CLIENT not supported.\n");
-    case MessageConsole::TYPE_ALLOC_VIEW:
-      assert(msg.ptr and msg.regs);
-      msg.view = num_views++;
-      Logging::printf("console: ALLOC_VIEW not implemented.\n");
-      return true;
-    case MessageConsole::TYPE_GET_MODEINFO:
-    case MessageConsole::TYPE_GET_FONT:
-    case MessageConsole::TYPE_KEY:
-    case MessageConsole::TYPE_RESET:
-    case MessageConsole::TYPE_START:
-    case MessageConsole::TYPE_KILL:
-    case MessageConsole::TYPE_DEBUG:
-    default:
+  fd_set set;
+  FD_ZERO(&set);
+  FD_SET(tap_fd, &set);
+
+  while (true) {
+    fd_set rset = set;
+    if (0 > select(tap_fd + 1, &rset, nullptr, nullptr, nullptr)) {
+      perror("select");
       break;
     }
-  return false;
+
+    int  res = read(tap_fd, network_pbuf, sizeof(network_pbuf));
+    if (res <= 0) break;
+    printf("tap: read %u bytes.\n", res);
+    MessageNetwork msg(network_pbuf, res, 0);
+
+    sem_wait(&vcpu_sem);
+    mb.bus_network.send(msg);
+    sem_post(&vcpu_sem);
+  }
+
+  return nullptr;
+}
+
+static bool receive(Device *, MessageNetwork &msg)
+{
+  int res;
+
+  switch (msg.type) {
+  case MessageNetwork::PACKET:
+    Logging::printf("packet %u bytes\n", msg.len);
+    if (tap_fd and msg.buffer != network_pbuf) {
+      res = write(tap_fd, msg.buffer, msg.len);
+      if (res != static_cast<int>(msg.len)) perror("write to tap");
+    }
+    return true;
+  case MessageNetwork::QUERY_MAC:
+  default:
+    return false;
+  }
+
+}
+
+static bool receive(Device *, MessageDisk &msg)
+{
+  if (msg.disknr >= disks.size()) return false;
+
+  Disk               &disk   = disks[msg.disknr];
+  MessageDisk::Status status = MessageDisk::DISK_OK;
+  unsigned long long  offset = msg.sector << 9;
+
+  switch (msg.type) {
+  case MessageDisk::DISK_READ:
+  case MessageDisk::DISK_WRITE:
+    for (unsigned i=0; i < msg.dmacount; i++) {
+      size_t  start = offset;
+      size_t  end   = start + msg.dma[i].bytecount;
+      ssize_t bytes;
+
+      if (end > disk.size or start > disk.size or
+          msg.dma[i].byteoffset > msg.physsize or
+          msg.dma[i].byteoffset + msg.dma[i].bytecount > msg.physsize) {
+        status = MessageDisk::Status(MessageDisk::DISK_STATUS_DEVICE |
+                                     (i << MessageDisk::DISK_STATUS_SHIFT));
+        break;
+      }
+
+      // XXX Workaround, use hostop GUEST_MEM.
+      msg.physoffset = reinterpret_cast<uintptr_t>(ram);
+
+      typedef int (*RWFn)(int,void *,size_t,off_t);
+      bytes = ((msg.type == MessageDisk::DISK_READ) ? (RWFn)pread : (RWFn)pwrite)
+        (disk.fd, reinterpret_cast<void *>(msg.dma[i].byteoffset + msg.physoffset),
+         end - start, start);
+
+      if (bytes < ssize_t(end - start)) {
+        Logging::printf("short read/write: %zd instead of %zd\n", bytes, end - start);
+      }
+
+      offset += end - start;
+    }
+    break;
+  case MessageDisk::DISK_GET_PARAMS:
+    {
+      msg.params->flags = DiskParameter::FLAG_HARDDISK;
+      msg.params->sectors = disk.size >> 9;
+      msg.params->sectorsize = 512;
+      msg.params->maxrequestcount = msg.params->sectors;
+      strncpy(msg.params->name, disk.name, sizeof(msg.params->name));
+      return true;
+    }
+  case MessageDisk::DISK_FLUSH_CACHE:
+    break;
+  default:
+    assert(0);
+  }
+
+  MessageDiskCommit cmsg(msg.disknr, msg.usertag, status);
+  mb.bus_diskcommit.send(cmsg);
+
+  return true;
 }
 
 static void usage()
 {
-  fprintf(stderr, "Usage: seoul [-m RAM] [kernel parameters] [module1 parameters] ...\n");
+  fprintf(stderr, "Usage: seoul [-m RAM] [-n tap-device] [kernel parameters] [module1 parameters] ...\n");
   exit(EXIT_FAILURE);
 }
 
@@ -400,10 +522,20 @@ int main(int argc, char **argv)
          version_str);
 
   int ch;
-  while ((ch = getopt(argc, argv, "hm:")) != -1) {
+  while ((ch = getopt(argc, argv, "hm:n:d:")) != -1) {
     switch (ch) {
     case 'm':
       ram_size = atoi(optarg) << 20;
+      break;
+    case 'n':
+      tap_fd = open(optarg, O_RDWR);
+      if (tap_fd < 0) {
+        perror("open tap device");
+        return EXIT_FAILURE;
+      }
+      break;
+    case 'd':
+      disks.push_back(Disk::from_file(optarg));
       break;
     case 'h':
     case '?':
@@ -414,18 +546,12 @@ int main(int argc, char **argv)
   }
 
   if ((argc - optind) % 2) {
-    printf("Module and command line parameters must be matched.\n");
-    exit(EXIT_FAILURE);
+    fprintf(stderr, "Module and command line parameters must be matched.\n");
+    return(EXIT_FAILURE);
   }
 
   for (int i = optind; i+1 < argc; i += 2) {
     modules.push_back(Module::from_file(argv[i], argv[i+1]));
-  }
-
-  printf("\nStarting devices:\n");
-  printf("Devices included:\n");
-  PARAM_ITER(p) {
-    printf("\t%s\n", (*p)->name);
   }
 
   // Allocating RAM.
@@ -452,7 +578,9 @@ int main(int argc, char **argv)
   mb.bus_hostop .add(nullptr, receive);
   mb.bus_timer  .add(nullptr, receive);
   mb.bus_time   .add(nullptr, receive);
-  mb.bus_console.add(nullptr, receive);
+
+  mb.bus_network.add(nullptr, receive);
+  mb.bus_disk   .add(nullptr, receive);
 
   // Synchronization initialization
   if (0 != sem_init(&vcpu_sem, 0, 0)) {
@@ -465,12 +593,12 @@ int main(int argc, char **argv)
     mb.handle_arg(*dev);
   }
 
-  printf("Devices and %zu virtual CPU%s started successfully.\n",
-         vcpu_info.size(), vcpu_info.size() == 1 ? "" : "s");
+  Logging::printf("Devices and %zu virtual CPU%s started successfully.\n",
+                  vcpu_info.size(), vcpu_info.size() == 1 ? "" : "s");
 
   // init VCPUs
   for (VCpu *vcpu = mb.last_vcpu; vcpu; vcpu=vcpu->get_last()) {
-    printf("Initializing virtual CPU %p.\n", vcpu);
+    Logging::printf("Initializing virtual CPU %p.\n", vcpu);
 
     // init CPU strings
     static const char *short_name = "NOVA microHV";
@@ -493,11 +621,28 @@ int main(int argc, char **argv)
   MessageLegacy msg2(MessageLegacy::RESET, 0);
   mb.bus_legacy.send_fifo(msg2);
 
+  pthread_t iothread;
+  if (tap_fd) {
+    Logging::printf("Starting background threads.\n");
+    if (0 != pthread_create(&iothread, NULL, network_io_thread_fn, NULL)) {
+      perror("pthread_create");
+      return EXIT_FAILURE;
+    }
+  }
+
+  Logging::printf("Virtual CPUs starting.\n");
   sem_post(&vcpu_sem);
 
+  // Waiting for CPUs to exit.
   for (Vcpu_info &i : vcpu_info)
-    if (0 != pthread_join(i.tid, NULL))
+    if (0 != pthread_join(i.tid, nullptr))
       perror("pthread_join");
+
+  // Force IO thread to exit.
+  if (tap_fd) {
+    close(tap_fd);
+    pthread_join(iothread, nullptr);
+  }
 
   printf("Terminating.\n");
   return EXIT_SUCCESS;

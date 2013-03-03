@@ -69,6 +69,8 @@ if not conf.CheckFunc('timer_create'):
             Exit(1)
 env = conf.Finish()
 
+env.ParseConfig('pkg-config --cflags --libs ncurses')
+
 AlwaysBuild(Command('version.inc', [], """( git describe --dirty --long --always || echo UNKNOWN ) | sed 's/^\\(.*\\)$/"\\1"/' > $TARGET"""))
 
 
@@ -90,6 +92,7 @@ halifaxenv.Append(CXXFLAGS = ' -O3' if not debug else ' -O1')
 halifax = halifaxenv.Object('../executor/halifax.cc')
 
 env.Append(CXXFLAGS = ' -O3' if not debug else ' -O0')
+
 
 sources = Glob('*.cc') + [            # Unix frontend
       '../model/memorycontroller.cc', # Rest is Vancouver code
@@ -126,7 +129,7 @@ sources = Glob('*.cc') + [            # Unix frontend
 if target_arch == 'x86_32':
         sources += [ '../model/intel82576vf.cc' ]
 
-seoul = env.Program('seoul', sources + halifax, LIBS = ['pthread', 'rt'])
+seoul = env.Program('seoul', sources + halifax, LIBS = ['pthread'] + env['LIBS'])
 Default(seoul)
 
 # EOF
