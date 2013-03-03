@@ -22,30 +22,30 @@
 
 struct DmaDescriptor
 {
-  unsigned long byteoffset;
-  unsigned bytecount;
+  uintptr_t byteoffset;
+  size_t bytecount;
 
 
-  static unsigned long sum_length(unsigned char dmacount, DmaDescriptor *dma)
+  static unsigned long sum_length(size_t dmacount, DmaDescriptor *dma)
   {
-    unsigned long res = 0;
-    for (unsigned i=0; i < dmacount; i++) res += dma[i].bytecount;
+    size_t res = 0;
+    for (size_t i=0; i < dmacount; i++) res += dma[i].bytecount;
     return res;
   }
 
   /**
    * Copy data from an internal buffer to an DMA buffer.
    */
-  static bool copy_inout(char *buffer, unsigned len, unsigned long offset,
-			 unsigned char dmacount, DmaDescriptor *dma, bool copyout,
-			 unsigned long physoffset, unsigned long physsize)
+  static bool copy_inout(char *buffer, size_t len, size_t offset,
+                         size_t dmacount, DmaDescriptor *dma, bool copyout,
+                         size_t physoffset, size_t physsize)
   {
-    unsigned i;
+    size_t i;
     for (i=0; i < dmacount && offset >= dma[i].bytecount; i++)  offset -= dma[i].bytecount;
     while (len > 0 && i < dmacount)
       {
 	assert(dma[i].bytecount >= offset);
-	unsigned sublen = dma[i].bytecount - offset;
+	size_t sublen = dma[i].bytecount - offset;
 	if (sublen > len) sublen = len;
 
 	if ((dma[i].byteoffset + offset) > physsize ||  (dma[i].byteoffset + offset + sublen) > physsize) break;
@@ -77,8 +77,8 @@ struct DiskParameter
     FLAG_ATAPI    = 2
   };
   unsigned flags;
-  unsigned long long sectors;
-  unsigned sectorsize;
-  unsigned maxrequestcount;
+  uint64 sectors;
+  size_t sectorsize;
+  size_t maxrequestcount;
   char name[256];
 };

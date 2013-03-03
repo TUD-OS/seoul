@@ -61,9 +61,9 @@ public:
   /**
    * Receive a FIS from the Device.
    */
-  void receive_fis(unsigned fislen, unsigned *fis)
+  void receive_fis(size_t fislen, unsigned *fis)
   {
-    unsigned copy_offset;
+    size_t copy_offset;
 
     // fis receiving enabled?
     // XXX bug in 2.6.27?
@@ -268,7 +268,7 @@ REGSET(AhciController,
        REG_WR(REG_GHC,   0x4, 0x80000000, 0x3, 0x1, 0,
 	      // reset HBA?
 	      if (REG_GHC & 1) {
-		for (unsigned i=0; i < MAX_PORTS; i++)  _ports[i].comreset();
+		for (size_t i=0; i < MAX_PORTS; i++)  _ports[i].comreset();
 		// set all registers to default values
 		REG_IS  = REG_IS_reset;
 		REG_GHC = REG_GHC_reset;
@@ -304,7 +304,7 @@ class AhciController : public ParentIrqProvider,
 #define  REGBASE "../model/ahcicontroller.cc"
 #include "model/reg.h"
 
-  bool match_bar(unsigned long &address) {
+  bool match_bar(uintptr_t &address) {
     bool res = !((address ^ PCI_ABAR) & PCI_ABAR_mask);
     address &= ~PCI_ABAR_mask;
     return res;
@@ -314,7 +314,7 @@ class AhciController : public ParentIrqProvider,
  public:
 
   void trigger_irq (void * child) {
-    unsigned index = reinterpret_cast<AhciPort *>(child) - _ports;
+    size_t index = reinterpret_cast<AhciPort *>(child) - _ports;
     if (~REG_IS & (1 << index))
       {
 	REG_IS |= 1 << index;
@@ -336,7 +336,7 @@ class AhciController : public ParentIrqProvider,
 
   bool receive(MessageMem &msg)
   {
-    unsigned long addr = msg.phys;
+    uintptr_t addr = msg.phys;
     if (!match_bar(addr) || !(PCI_CMD_STS & 0x2))
       return false;
 
@@ -379,7 +379,7 @@ class AhciController : public ParentIrqProvider,
   AhciController(Motherboard &mb, unsigned char irq, unsigned bdf)
     : _bus_irqlines(mb.bus_irqlines), _bus_mem(mb.bus_mem), _irq(irq), _bdf(bdf)
   {
-    for (unsigned i=0; i < MAX_PORTS; i++) _ports[i].set_parent(this, &mb.bus_memregion, &mb.bus_mem);
+    for (size_t i=0; i < MAX_PORTS; i++) _ports[i].set_parent(this, &mb.bus_memregion, &mb.bus_mem);
     PCI_reset();
     AhciController_reset();
   };

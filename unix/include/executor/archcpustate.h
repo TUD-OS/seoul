@@ -22,6 +22,7 @@
 #pragma once
 
 #include <service/string.h>
+#include <nul/types.h>
 
 enum {
   MTD_GPR_ACDB        = 1ul << 0,
@@ -54,46 +55,65 @@ enum {
   INJ_WIN    = INJ_IRQWIN | INJ_NMIWIN
 };
 
+#define GREG(NAME)                                  \
+  union {                                           \
+    struct {                                        \
+      unsigned char           NAME##l, NAME##h;     \
+    };                                              \
+    unsigned short          NAME##x;                \
+    unsigned           e##NAME##x;                  \
+    mword              r##NAME##x;                  \
+  }
+#define GREG16(NAME)                        \
+  union {                                   \
+    unsigned short          NAME;           \
+    unsigned           e##NAME;             \
+    mword              r##NAME##x;          \
+  }
+
 struct ArchCpuState
 {
   typedef struct Descriptor
   {
-    unsigned short sel, ar;
-    unsigned limit, base, res;
-    void set(unsigned short _sel, unsigned _base, unsigned _limit, unsigned short _ar) { sel = _sel; base = _base; limit = _limit; ar = _ar; };
+    uint16 sel, ar;
+    uint32 limit;
+    union {
+        uint64 : 64;
+        mword base;
+    };
+    void set(uint16 _sel, uint32 _base, uint32 _limit, uint16 _ar) { sel = _sel; base = _base; limit = _limit; ar = _ar; };
   } Descriptor;
 
-  unsigned     mtd;
-  unsigned     inst_len, eip, efl;
-  unsigned     intr_state, actv_state, inj_info, inj_error;
+  mword     mtd;
+  mword     inst_len;
+  GREG16(ip); GREG16(fl);
+  uint32     intr_state, actv_state, inj_info, inj_error;
   union {
     struct {
-#define GREG(NAME)					\
-      union {                                           \
-        struct {					\
-          unsigned char           NAME##l, NAME##h;	\
-        };						\
-        unsigned short          NAME##x;		\
-        unsigned           e##NAME##x;                  \
-      }
-#define GREG16(NAME)				\
-      union {                                   \
-        unsigned short          NAME;           \
-        unsigned           e##NAME;		\
-      }
       GREG(a);    GREG(c);    GREG(d);    GREG(b);
       GREG16(sp); GREG16(bp); GREG16(si); GREG16(di);
+#ifdef __x86_64__
+      mword r8, r9, r10, r11, r12, r13, r14, r15;
+#endif
     };
-    unsigned gpr[8];
+#ifdef __x86_64__
+    mword gpr[16];
+#else
+    mword gpr[8];
+#endif
   };
-  unsigned long long qual[2];
-  unsigned     ctrl[2];
-  long long reserved;
-  unsigned     cr0, cr2, cr3, cr4;
-  unsigned     dr7, sysenter_cs, sysenter_esp, sysenter_eip;
+  uint64       qual[2];
+  uint32       ctrl[2];
+  uint64       : 64;          // reserved
+  mword        cr0, cr2, cr3, cr4;
+#ifdef __x86_64__
+  mword        cr8;
+  mword        : 64;          // reserved
+#endif
+  mword        dr7, sysenter_cs, sysenter_esp, sysenter_eip;
   Descriptor   es, cs, ss, ds, fs, gs;
   Descriptor   ld, tr, gd, id;
-  long long tsc_value, tsc_off;
+  uint64       tsc_value, tsc_off;
 
   /* Set all values to zero. */
   void clear() { memset(this, 0, sizeof(*this)); }

@@ -21,7 +21,7 @@
 
 struct Elf
 {
-  static unsigned is_not_elf(const eh32 *elf, unsigned long modsize)
+  static unsigned is_not_elf(const eh32 *elf, size_t modsize)
   {
     check1(1, modsize < sizeof(struct eh32));
     check1(2, modsize < elf->e_phoff + elf->e_phentsize *  elf->e_phnum);
@@ -37,14 +37,14 @@ struct Elf
   /**
    * Get the size of the PT_LOAD sections.
    */
-  static unsigned long loaded_memsize(char *module, unsigned long modsize)
+  static size_t loaded_memsize(char *module, size_t modsize)
   {
     struct eh32 *elf = reinterpret_cast<struct eh32 *>(module);
     if (is_not_elf(elf, modsize))   return 0;
 
 
-    unsigned long start = ~0ul;
-    unsigned long end   = 0;
+    uintptr_t start = ~0ul;
+    uintptr_t end   = 0;
     for (unsigned j=0; j < elf->e_phnum; j++)
       {
 	struct ph32 *ph = reinterpret_cast<struct ph32 *>(module + elf->e_phoff + j*elf->e_phentsize);
@@ -60,8 +60,9 @@ struct Elf
    * Decode an elf32 binary. I.e. copy the ELF segments from ELF image
    * pointed by module to the memory at phys_mem.
    */
-  static unsigned  decode_elf(char *module, unsigned long modsize, char *phys_mem, unsigned long &rip, unsigned long &maxptr, unsigned long mem_size,
-			      unsigned long mem_offset, unsigned long long magic)
+  static unsigned  decode_elf(char *module, size_t modsize, char *phys_mem, uintptr_t &rip,
+                              uintptr_t &maxptr, size_t mem_size, size_t mem_offset,
+                              unsigned long long magic)
   {
     unsigned res;
     struct eh32 *elf = reinterpret_cast<struct eh32 *>(module);

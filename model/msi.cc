@@ -36,7 +36,7 @@ public:
 
     COUNTER_INC("MSI");
 
-    unsigned dst = (msg.phys >> 12) & 0xff | (msg.phys << 4) & 0xff00;
+    uintptr_t dst = (msg.phys >> 12) & 0xff | (msg.phys << 4) & 0xff00;
     unsigned icr = *msg.ptr & 0xc7ff;
     unsigned event = 1 << ((icr >> 8) & 7);
 

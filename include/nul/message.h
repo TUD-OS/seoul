@@ -92,9 +92,9 @@ struct MessageMem
     MSI_RH      = 1 << 3
   };
   bool read;
-  unsigned long phys;
+  uintptr_t phys;
   unsigned *ptr;
-  MessageMem(bool _read, unsigned long _phys, unsigned *_ptr) : read(_read), phys(_phys), ptr(_ptr) {}
+  MessageMem(bool _read, uintptr_t _phys, unsigned *_ptr) : read(_read), phys(_phys), ptr(_ptr) {}
 };
 
 /**
@@ -106,11 +106,11 @@ struct MessageMem
  */
 struct MessageMemRegion
 {
-  unsigned long page;
-  unsigned long start_page;
+  uintptr_t page;
+  uintptr_t start_page;
   unsigned      count;
   char *        ptr;
-  MessageMemRegion(unsigned long _page) : page(_page), count(0), ptr(0) {}
+  MessageMemRegion(uintptr_t _page) : page(_page), count(0), ptr(0) {}
 };
 
 
@@ -328,7 +328,7 @@ struct VgaRegs
   unsigned short mode;
   unsigned short cursor_style;
   unsigned cursor_pos;
-  unsigned long offset;
+  size_t offset;
 };
 
 
@@ -372,7 +372,7 @@ struct MessageConsole
     struct {
       const char *name;
       char    * ptr;
-      unsigned size;
+      size_t size;
       VgaRegs *regs;
     };
     struct {
@@ -392,7 +392,7 @@ struct MessageConsole
   };
   MessageConsole(Type _type = TYPE_ALLOC_CLIENT, unsigned short _id=0) : type(_type), id(_id), ptr(0) {}
   MessageConsole(unsigned _index, ConsoleModeInfo *_info) : type(TYPE_GET_MODEINFO), index(_index), info(_info) {}
-  MessageConsole(const char *_name, char * _ptr, unsigned _size, VgaRegs *_regs)
+  MessageConsole(const char *_name, char * _ptr, size_t _size, VgaRegs *_regs)
     : type(TYPE_ALLOC_VIEW), id(~0), name(_name), ptr(_ptr), size(_size), regs(_regs) {}
   MessageConsole(unsigned short _id, unsigned short _view, unsigned _input_device, unsigned _input_data)
     : type(TYPE_KEY), id(_id), view(_view), input_device(_input_device), input_data(_input_data) {}
@@ -458,14 +458,14 @@ struct MessageHostOp
   };
   union {
     struct {
-      unsigned long phys;
-      unsigned long phys_len;
+      uintptr_t phys;
+      size_t phys_len;
     };
     struct {
       char const *service_name;
-      unsigned long portal_func;
+      size_t portal_func;
       bool cap;
-      unsigned long portal_pf;
+      size_t portal_pf;
       unsigned excbase;
       unsigned excinc;
       unsigned crd_t;
@@ -473,16 +473,16 @@ struct MessageHostOp
     };
     struct {
       char *ptr;
-      unsigned long len;
+      size_t len;
       phy_cpu_no cpu;
       char const * desc;
     };
     struct {
       unsigned module;
       char * start;
-      unsigned long size;
+      size_t size;
       char * cmdline;
-      unsigned long cmdlen;
+      size_t cmdlen;
     };
     struct {
       unsigned msi_gsi;
@@ -541,11 +541,11 @@ struct MessageHostOp
   }
 
   explicit MessageHostOp(VCpu *_vcpu) : type(OP_VCPU_CREATE_BACKEND), value(0), vcpu(_vcpu) {}
-  explicit MessageHostOp(unsigned _module, char * _start, unsigned long _size=0) : type(OP_GET_MODULE), module(_module), start(_start), size(_size), cmdlen(0)  {}
-  explicit MessageHostOp(Type _type, unsigned long _value, unsigned long _len=0, unsigned _cpu=~0U) : type(_type), value(_value),
+  explicit MessageHostOp(unsigned _module, char * _start, size_t _size=0) : type(OP_GET_MODULE), module(_module), start(_start), size(_size), cmdlen(0)  {}
+  explicit MessageHostOp(Type _type, unsigned long _value, size_t _len=0, unsigned _cpu=~0U) : type(_type), value(_value),
                                                                                                       ptr(0), len(_len), cpu(_cpu) {}
-  explicit MessageHostOp(Type _type, void * _value, unsigned long _len=0) : type(_type), obj(_value), ptr(0), len(_len) {}
-  explicit MessageHostOp(void * _obj, char const * _name, unsigned long _pfu, char * _revoke_mem = 0, bool _cap = true)
+  explicit MessageHostOp(Type _type, void * _value, size_t _len=0) : type(_type), obj(_value), ptr(0), len(_len) {}
+  explicit MessageHostOp(void * _obj, char const * _name, uintptr_t _pfu, char * _revoke_mem = 0, bool _cap = true)
     : type(OP_REGISTER_SERVICE), obj(_obj), service_name(_name), portal_func(_pfu), cap(_cap), portal_pf(0), excbase(0), excinc(0), crd_t(0), revoke_mem(_revoke_mem) {}
 };
 
@@ -561,7 +561,7 @@ struct MessageAcpi
       const char *name;
       unsigned instance;
       char *table;
-      unsigned len;
+      size_t len;
     };
     struct {
       unsigned parent_bdf;
@@ -590,17 +590,17 @@ struct MessageDiscovery
   } type;
   struct {
     const char * resource;
-    unsigned     offset;
+    size_t     offset;
     union {
       const void * data;
       unsigned   * dw;
     };
-    unsigned     count;
+    size_t     count;
   };
   MessageDiscovery() : type(DISCOVERY) {}
-  MessageDiscovery(const char * _resource, unsigned _offset, const void * _data, unsigned _count)
+  MessageDiscovery(const char * _resource, size_t _offset, const void * _data, size_t _count)
     : type(WRITE), resource(_resource), offset(_offset), data(_data), count(_count) {}
-  MessageDiscovery(const char * _resource, unsigned _offset, unsigned * _dw)
+  MessageDiscovery(const char * _resource, size_t _offset, unsigned * _dw)
     : type(READ), resource(_resource), offset(_offset), dw(_dw) {}
 };
 
@@ -751,14 +751,14 @@ struct MessageNetwork
   union {
     struct {
       const unsigned char *buffer;
-      unsigned len;
+      size_t len;
     };
     unsigned long long mac;
   };
 
   unsigned client;
 
-  MessageNetwork(const unsigned char *buffer, unsigned len, unsigned client) : type(PACKET), buffer(buffer), len(len), client(client) {}
+  MessageNetwork(const unsigned char *buffer, size_t len, unsigned client) : type(PACKET), buffer(buffer), len(len), client(client) {}
   MessageNetwork(unsigned type, unsigned client) : type(type), mac(0), client(client) { }
 };
 

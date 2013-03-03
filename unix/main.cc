@@ -465,7 +465,7 @@ int main(int argc, char **argv)
     mb.handle_arg(*dev);
   }
 
-  printf("Devices and %u virtual CPU%s started successfully.\n",
+  printf("Devices and %zu virtual CPU%s started successfully.\n",
          vcpu_info.size(), vcpu_info.size() == 1 ? "" : "s");
 
   // init VCPUs

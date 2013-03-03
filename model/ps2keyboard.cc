@@ -34,7 +34,7 @@ class PS2Keyboard : public StaticReceiver<PS2Keyboard>
   unsigned _ps2port;
   unsigned _hostkeyboard;
   unsigned char _scset;
-  static const unsigned BUFFERSIZE = 18;
+  static const size_t BUFFERSIZE = 18;
   unsigned char _buffer[BUFFERSIZE];
   unsigned _pread;
   unsigned _pwrite;

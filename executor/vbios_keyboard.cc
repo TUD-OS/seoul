@@ -69,11 +69,11 @@ class VirtualBiosKeyboard : public StaticReceiver<VirtualBiosKeyboard>, public B
 
     // handle both shifts the same
     if (value & KBFLAG_RSHIFT) value = value & ~KBFLAG_RSHIFT | KBFLAG_LSHIFT;
-    for (unsigned i=0; i < sizeof(bios_key_map) / sizeof(bios_key_map[0]); i++)
+    for (size_t i=0; i < sizeof(bios_key_map) / sizeof(bios_key_map[0]); i++)
       if (bios_key_map[i].keycode == value)
 	return bios_key_map[i].code;
     unsigned *ascii_map = GenericKeyboard::get_ascii_map();
-    for (unsigned i=0; i<128; i++)
+    for (size_t i=0; i<128; i++)
       if (ascii_map[i] == value)
 	return (value << 8) | i;
     return 0;

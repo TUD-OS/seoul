@@ -131,7 +131,7 @@ private:
 	CpuMessage(1,  2, ~(1 << 21), apic_enabled << 21),
 
       };
-      for (unsigned i=0; i < sizeof(msg) / sizeof(*msg); i++)
+      for (size_t i=0; i < sizeof(msg) / sizeof(*msg); i++)
 	_vcpu->executor.send(msg[i]);
     }
 
@@ -248,7 +248,7 @@ private:
    * Scan for the highest bit in the ISR or IRR.
    */
   unsigned get_highest_bit(unsigned bit_offset) {
-    for (int i=7; i >=0; i--) {
+    for (ssize_t i=7; i >=0; i--) {
       unsigned value = _vector[(bit_offset >> 5) + i];
       if (value) return (i << 5) | Cpu::bsr(value);
     }
@@ -271,7 +271,7 @@ private:
   unsigned prioritize_irq() {
 
     // EXTINT pending?
-    for (unsigned i=0; i < NUM_LVT; i++) {
+    for (size_t i=0; i < NUM_LVT; i++) {
       unsigned lvt = 0;
       Lapic_read(i + LVT_BASE, lvt);
       if (_lvtds[i] && ((1 << ((lvt >> 8) & 7)) == VCpu::EVENT_EXTINT))
@@ -410,7 +410,7 @@ private:
 
     // mask all entries on SVR writes
     if (offset == _SVR_offset && sw_disabled())
-      for (unsigned i=0; i < NUM_LVT; i++) {
+      for (size_t i=0; i < NUM_LVT; i++) {
 	register_read (i + LVT_BASE, value);
 	register_write(i + LVT_BASE, value, false);
       }
@@ -701,7 +701,7 @@ public:
 
     unsigned value = 0;
     discovery_read_dw("APIC", 36, value);
-    unsigned length = discovery_length("APIC", 44);
+    size_t length = discovery_length("APIC", 44);
     if (value == 0) {
 
       // NMI is connected to LINT1 on all LAPICs
@@ -753,7 +753,7 @@ public:
       // support for APIC timer that does not sleep in C-states
       CpuMessage(6, 0, ~(1 << 2), 1 << 2),
     };
-    for (unsigned i=0; i < sizeof(msg) / sizeof(*msg); i++)
+    for (size_t i=0; i < sizeof(msg) / sizeof(*msg); i++)
       _vcpu->executor.send(msg[i]);
 
     reset();

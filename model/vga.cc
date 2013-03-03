@@ -39,8 +39,8 @@ class Vga : public StaticReceiver<Vga>, public BiosCommon
   unsigned short _view;
   unsigned short _iobase;
   char         * _framebuffer_ptr;
-  unsigned long  _framebuffer_phys;
-  unsigned long  _framebuffer_size;
+  uintptr_t      _framebuffer_phys;
+  size_t         _framebuffer_size;
   VgaRegs        _regs;
   unsigned char  _crt_index;
   unsigned       _ebda_segment;
@@ -48,7 +48,7 @@ class Vga : public StaticReceiver<Vga>, public BiosCommon
 
   void puts_guest(const char *msg) {
     unsigned pos = _regs.cursor_pos - TEXT_OFFSET;
-    for (unsigned i=0; msg[i]; i++)
+    for (size_t i=0; msg[i]; i++)
       Screen::vga_putc(0x0f00 | msg[i], reinterpret_cast<unsigned short *>(_framebuffer_ptr) + TEXT_OFFSET, pos);
     update_cursor(0, ((pos / 80) << 8) | (pos % 80));
   }
@@ -102,7 +102,7 @@ class Vga : public StaticReceiver<Vga>, public BiosCommon
 	if (vesa_mode == info->_vesa_mode)
 	  {
 	    // fix memory info
-	    unsigned long image_size = info->bytes_per_scanline * info->resolution[1];
+	    size_t image_size = info->bytes_per_scanline * info->resolution[1];
 	    if (!image_size || image_size > _framebuffer_size)
 	      info->attr &= ~1u;
 	    else
@@ -132,7 +132,7 @@ class Vga : public StaticReceiver<Vga>, public BiosCommon
 
 	  // copy in the tag
 	  copy_in(cpu->es.base + cpu->di, &v, 4);
-	  Logging::printf("VESA %x tag %x base %x+%x esi %x\n", cpu->eax, v.tag, cpu->es.base, cpu->di, cpu->esi);
+	  Logging::printf("VESA %x tag %x base %lx+%x esi %x\n", cpu->eax, v.tag, cpu->es.base, cpu->di, cpu->esi);
 
 	  // we support VBE 2.0
 	  v.version = 0x0200;
@@ -154,7 +154,7 @@ class Vga : public StaticReceiver<Vga>, public BiosCommon
 	  assert (p < reinterpret_cast<char *>((&v)+1));
 
 	  v.memory = _framebuffer_size >> 16;
-	  unsigned copy_size = (v.tag == Vbe::TAG_VBE2) ? sizeof(v) : 256;
+	  size_t copy_size = (v.tag == Vbe::TAG_VBE2) ? sizeof(v) : 256;
 	  v.tag = Vbe::TAG_VESA;
 	  copy_out(cpu->es.base + cpu->di, &v, copy_size);
 	}
@@ -178,7 +178,7 @@ class Vga : public StaticReceiver<Vga>, public BiosCommon
 	  if (index != ~0u && info.attr & 1)
 	    {
 	      // ok, we have the mode -> set it
-	      Logging::printf("VESA %x base %x+%x esi %x mode %x\n", cpu->eax, cpu->es.base, cpu->di, cpu->esi, index);
+	      Logging::printf("VESA %x base %lx+%x esi %x mode %x\n", cpu->eax, cpu->es.base, cpu->di, cpu->esi, index);
 
 	      // clear buffer
 	      if (~cpu->ebx & 0x8000)  memset(_framebuffer_ptr, 0, _framebuffer_size);
@@ -502,7 +502,7 @@ public:
     discovery_write_dw("bda",  0x49,    3, 1); // current videomode
     discovery_write_dw("bda",  0x4a,   80, 1); // columns on screen
     discovery_write_dw("bda",  0x4c, 4000, 2); // screenbytes: 80*25*2
-    for (unsigned i=0; i < 8; i++)             // cursor positions
+    for (size_t i=0; i < 8; i++)             // cursor positions
       discovery_write_dw("bda",  0x50 + 2*i,    0, 2);
     discovery_write_dw("bda",  0x84,   24, 1); // rows - 1
     discovery_write_dw("bda",  0x85,   16, 1); // character height in scan-lines
@@ -523,7 +523,7 @@ public:
   }
 
 
-  Vga(Motherboard &mb, unsigned short iobase, char *framebuffer_ptr, unsigned long framebuffer_phys, unsigned long framebuffer_size)
+  Vga(Motherboard &mb, unsigned short iobase, char *framebuffer_ptr, uintptr_t framebuffer_phys, size_t framebuffer_size)
     : BiosCommon(mb), _iobase(iobase), _framebuffer_ptr(framebuffer_ptr), _framebuffer_phys(framebuffer_phys), _framebuffer_size(framebuffer_size), _crt_index(0)
   {
     assert(!(framebuffer_phys & 0xfff));
@@ -545,7 +545,7 @@ public:
   }
 };
 
-static unsigned long _default_vga_fbsize = 128;
+static size_t _default_vga_fbsize = 128;
 PARAM_HANDLER(vga_fbsize,
 	      "vga_fbsize:size - override the default fbsize for the 'vga' parameter (in KB)")
 {
@@ -558,7 +558,7 @@ PARAM_HANDLER(vga,
 	      "The framebuffersize is given in kilobyte and the minimum is 128k.",
 	      "This also adds support for VGA and VESA graphics BIOS.")
 {
-  unsigned long fbsize = argv[1];
+  size_t fbsize = argv[1];
   if (fbsize == ~0ul) fbsize = _default_vga_fbsize;
 
   // We need at least 128k for 0xa0000-0xbffff.

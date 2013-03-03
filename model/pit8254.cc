@@ -407,7 +407,7 @@ class PitDevice : public StaticReceiver<PitDevice>
      {
        if ((msg.value & 0xc0) == 0xc0)
 	 {
-	   for (unsigned i=0; i < COUNTER; i++)
+	   for (size_t i=0; i < COUNTER; i++)
 	     if (msg.value & (1<<(i+1)))
 	       {
 		 _c[i].read_back(msg.value);
@@ -425,7 +425,7 @@ class PitDevice : public StaticReceiver<PitDevice>
   PitDevice(Motherboard &mb, unsigned short base, unsigned irq, unsigned pit)
     : _base(base), _addr(pit*COUNTER)
   {
-    for (unsigned i=0; i < COUNTER; i++)
+    for (size_t i=0; i < COUNTER; i++)
       {
 	_c[i] = PitCounter(&mb.bus_timer, &mb.bus_irqlines, i ? ~0U : irq, mb.clock());
 	if (!i) mb.bus_irqnotify.add(&_c[i], PitCounter::receive_static<MessageIrqNotify>);

@@ -26,11 +26,11 @@
  */
 class NullMemDevice : public StaticReceiver<NullMemDevice>
 {
-  unsigned long _base;
-  unsigned long _size;
+  uintptr_t _base;
+  size_t _size;
 
 public:
-  NullMemDevice(unsigned long base, unsigned long size) : _base(base), _size(size) {}
+  NullMemDevice(uintptr_t base, size_t size) : _base(base), _size(size) {}
   bool  receive(MessageMem &msg)
   {
     if (!in_range(msg.phys, _base, _size)) return false;

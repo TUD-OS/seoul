@@ -48,8 +48,8 @@ class DBus
   };
 
   unsigned long _debug_counter;
-  unsigned _list_count;
-  unsigned _list_size;
+  size_t _list_count;
+  size_t _list_size;
   struct Entry *_list;
 
   /**
@@ -57,7 +57,7 @@ class DBus
    */
   DBus(const DBus<M> &bus) { Logging::panic("%s copy constructor called", __func__); }
 
-  void set_size(unsigned new_size)
+  void set_size(size_t new_size)
   {
     Entry *n = new Entry[new_size];
     memcpy(n, _list, _list_count * sizeof(*_list));
@@ -83,7 +83,7 @@ public:
   {
     _debug_counter++;
     bool res = false;
-    for (unsigned i = _list_count; i-- && !(earlyout && res);)
+    for (size_t i = _list_count; i-- && !(earlyout && res);)
       res |= _list[i]._func(_list[i]._dev, msg);
     return res;
   }
@@ -95,7 +95,7 @@ public:
   {
     _debug_counter++;
     bool res = false;
-    for (unsigned i = 0; i < _list_count; i++)
+    for (size_t i = 0; i < _list_count; i++)
       res |= _list[i]._func(_list[i]._dev, msg);
     return 0;
   }
@@ -108,7 +108,7 @@ public:
   bool  send_rr(M &msg, unsigned &start)
   {
     _debug_counter++;
-    for (unsigned i = 0; i < _list_count; i++)
+    for (size_t i = 0; i < _list_count; i++)
       if (_list[i]._func(_list[(i + start) % _list_count]._dev, msg)) {
 	start = (i + start + 1) % _list_count;
 	return true;
@@ -121,7 +121,7 @@ public:
   /**
    * Return the number of entries in the list.
    */
-  unsigned count() { return _list_count; };
+  size_t count() { return _list_count; };
 
   /**
    * Debugging output.
@@ -129,7 +129,7 @@ public:
   void debug_dump()
   {
     Logging::printf("%s: Bus used %ld times.", __PRETTY_FUNCTION__, _debug_counter);
-    for (unsigned i = 0; i < _list_count; i++)
+    for (size_t i = 0; i < _list_count; i++)
       {
 	Logging::printf("\n%2d:\t", i);
 	_list[i]._dev->debug_dump();

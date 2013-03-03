@@ -165,8 +165,8 @@ class InstructionCache : public MemTlb
   unsigned _oeip;
   unsigned _oesp;
   unsigned _ointr_state;
-  unsigned _dr6;
-  unsigned _dr[4];
+  mword _dr6;
+  mword _dr[4];
   unsigned _fpustate [512/sizeof(unsigned)] __attribute__((aligned(16)));
 
   int send_message(CpuMessage::Type type)
@@ -210,7 +210,7 @@ class InstructionCache : public MemTlb
   {
     unsigned cs_ar = READ(cs).ar;
     unsigned linear = _cpu->eip + READ(cs).base;
-    for (unsigned i = slot(linear); i < slot(linear) + ASSOZ; i++)
+    for (size_t i = slot(linear); i < slot(linear) + ASSOZ; i++)
       if (linear == _tags[i] &&  _values[i].inst_len)
 	{
 	  InstructionCacheEntry tmp;
@@ -312,7 +312,7 @@ public:
     return _fault;
   }
 
-  unsigned *get_reg32(unsigned reg)
+  mword *get_reg32(unsigned reg)
   {
     return _cpu->gpr + reg;
   }
@@ -530,7 +530,7 @@ public:
 	else
 	  {
 	    _mtr_out |= MTD_INJ;
-	    Logging::printf("fault: %x old %x error %x cr2 %x at eip %x line %d %x\n", _fault, _cpu->inj_info,
+	    Logging::printf("fault: %x old %x error %x cr2 %lx at eip %x line %d %lx\n", _fault, _cpu->inj_info,
 			    _error_code, _cpu->cr2, _cpu->eip, _debug_fault_line, _cpu->cr2);
 	    // consolidate two exceptions
 

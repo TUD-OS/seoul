@@ -197,7 +197,7 @@ class Rtc146818 : public StaticReceiver<Rtc146818>
     unsigned start = 0;
     unsigned wildcards = 0;
     unsigned p = 1;
-    for (unsigned i=0; i < 3; i++)
+    for (size_t i=0; i < 3; i++)
       {
 	if (_ram[i*2 + 1] >= 0xc0)
 	  wildcards |= 1 << i;

@@ -63,7 +63,7 @@ private:
   };
 
   // the hash function for the cache
-  unsigned slot(unsigned phys) { phys = phys >> 12; return ((phys ^ (phys/SIZE)) % SIZE); }
+  uintptr_t slot(uintptr_t phys) { phys = phys >> 12; return ((phys ^ (phys/SIZE)) % SIZE); }
 
 
 public:
@@ -81,15 +81,15 @@ public:
   struct CacheEntry
   {
     // the start address of this entry
-    unsigned _phys1;
-    unsigned _phys2;
+    uintptr_t _phys1;
+    uintptr_t _phys2;
     // 0 -> invalid, can be RAM up to 8k
     char *_ptr;
     // length of cache entry, this can be up to 8k long
-    unsigned _len;
+    size_t _len;
     // a pointer in a single linked list to an older entry in the set or ~0u at the end
     unsigned _older;
-    bool is_valid(unsigned long phys1, unsigned long phys2, unsigned len)
+    bool is_valid(uintptr_t phys1, uintptr_t phys2, size_t len)
     {
       if (!_ptr) return false;
       return _ptr && phys1 == _phys1 && len == _len && phys2 == _phys2;
@@ -100,7 +100,7 @@ public:
 private:
   struct {
     CacheEntry _values[ASSOZ];
-    unsigned _newest;
+    size_t _newest;
   } _sets[SIZE];
 
 
@@ -111,20 +111,20 @@ private:
    */
   struct Buffers : CacheEntry
   {
-    unsigned _newer_write;
+    size_t _newer_write;
     char data[BUFFER_SIZE];
   } _buffers[BUFFERS];
-  unsigned _newest_buffer;
-  unsigned _oldest_write;
-  unsigned _newest_write;
+  size_t _newest_buffer;
+  size_t _oldest_write;
+  size_t _newest_write;
 
 
   void buffer_io(bool read, unsigned index) {
     assert(!(_buffers[index]._len & 3));
     assert(!(_buffers[index]._phys1 & 3));
 
-    unsigned long address = _buffers[index]._phys1;
-    for (unsigned i=0; i < _buffers[index]._len; i += 4) {
+    uintptr_t address = _buffers[index]._phys1;
+    for (size_t i=0; i < _buffers[index]._len; i += 4) {
       MessageMem msg2(read, address, reinterpret_cast<unsigned *>(_buffers[index].data + i));
       _mem.send(msg2, true);
       if ((address & 0xfff) != 0xffc)
@@ -140,7 +140,7 @@ private:
    */
   void invalidate_dirty()
   {
-    unsigned i = _oldest_write;
+    size_t i = _oldest_write;
     assert(~i);
 
     _oldest_write = _buffers[i]._newer_write;
@@ -173,8 +173,8 @@ private:
  * Search for an entry starting from the newest one.
  */
 #define search_entry(set, newest)					\
-  unsigned old = ~0;							\
-  unsigned entry = newest;						\
+  size_t old = ~0UL;							\
+  size_t entry = newest;						\
   for (; ~set[entry]._older; old = entry, entry = set[entry]._older)	\
     if (set[entry].is_valid(phys1, phys2, len))				\
       return_move_to_front(set, newest);				\
@@ -188,7 +188,7 @@ public:
   /**
    * Get an entry from the cache or fetch one from memory.
    */
-  CacheEntry *get(unsigned long phys1, unsigned long phys2, unsigned len, Type type)
+  CacheEntry *get(uintptr_t phys1, uintptr_t phys2, size_t len, Type type)
   {
     assert(!(phys1 & 3));
     assert(!(len & 3));
@@ -272,7 +272,7 @@ public:
 	while (~_oldest_write) invalidate_dirty();
       else
 	_oldest_write = _newest_write = ~0;
-      for (unsigned i=0; i < BUFFERS; i++) { _buffers[i]._ptr = 0; _buffers[i]._newer_write = ~0; }
+      for (size_t i=0; i < BUFFERS; i++) { _buffers[i]._ptr = 0; _buffers[i]._newer_write = ~0; }
     }
 
 
@@ -282,10 +282,10 @@ public:
     assert(BUFFERS >= 2);
 
     // init the cache sets
-    for (unsigned j = 0; j < SIZE; j++)
+    for (size_t j = 0; j < SIZE; j++)
       {
 	_sets[j]._newest = ~0;
-	for (unsigned i = 0; i < ASSOZ; i++)
+	for (size_t i = 0; i < ASSOZ; i++)
 	  {
 	    _sets[j]._values[i]._older = _sets[j]._newest;
 	    _sets[j]._newest = i;
@@ -294,7 +294,7 @@ public:
 
     // init the buffers
     _newest_buffer = ~0;
-    for (unsigned i = 0; i < BUFFERS; i++)
+    for (size_t i = 0; i < BUFFERS; i++)
       {
 	_buffers[i]._older = _newest_buffer;
 	_newest_buffer = i;

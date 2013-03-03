@@ -26,7 +26,7 @@ class VirtualCpu : public VCpu, public StaticReceiver<VirtualCpu>
 #define REGBASE "../model/vcpu.cc"
 #include "model/reg.h"
 
-  unsigned long _hostop_id;
+  uintptr_t _hostop_id;
   Motherboard &_mb;
   long long _reset_tsc_off;
 

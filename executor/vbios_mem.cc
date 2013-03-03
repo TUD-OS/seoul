@@ -31,7 +31,7 @@ class VirtualBiosMem : public StaticReceiver<VirtualBiosMem>, public BiosCommon
   /**
    * Return the size of guest physical memory.
    */
-  unsigned long memsize()
+  size_t memsize()
   {
     MessageHostOp msg1(MessageHostOp::OP_GUEST_MEM, 0UL);
     if (!_bus_hostop.send(msg1))

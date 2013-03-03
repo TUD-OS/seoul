@@ -144,7 +144,7 @@ private:
 
 	_rirr[pin] = level;
 	_ds[pin]   = false;
-	unsigned long phys = MessageMem::MSI_ADDRESS | (dst >> 12) & 0xffff0;
+	uintptr_t phys = MessageMem::MSI_ADDRESS | (dst >> 12) & 0xffff0;
 	if (value & MessageApic::ICR_DM) phys |= MessageMem::MSI_DM;
 	if ((value & 0x700) == 0x100)    phys |= MessageMem::MSI_RH;
 	if (_rirr[pin])                 value |= 1 << 14;
@@ -162,7 +162,7 @@ private:
    * EOI a vector.
    */
   void eoi(unsigned char vector) {
-    for (unsigned i=0; i < PINS; i++)
+    for (size_t i=0; i < PINS; i++)
       if ((_redir[i*2] & 0xff) == vector && _rirr[i]) {
 	_rirr[i] = false;
 	notify(i);
@@ -174,7 +174,7 @@ private:
    * Reset the registers.
    */
   void reset() {
-    for (unsigned i=0; i < PINS; i++) {
+    for (size_t i=0; i < PINS; i++) {
       _redir[2*i]   = 0x10000;
       _redir[2*i+1] = 0;
       _notify[i]    = false;
@@ -234,7 +234,7 @@ public:
 
   void discovery() {
 
-    unsigned length = discovery_length("APIC", 44);
+    size_t length = discovery_length("APIC", 44);
 
     if (!_gsibase) {
       // override IRQ 0->2
@@ -256,7 +256,7 @@ public:
 
 
 
-  IOApic(Motherboard &mb, unsigned long base, unsigned gsibase) : _mb(mb), _base(base), _gsibase(gsibase)
+  IOApic(Motherboard &mb, uintptr_t base, unsigned gsibase) : _mb(mb), _base(base), _gsibase(gsibase)
   {
     reset();
     _mb.bus_mem.add(this,       receive_static<MessageMem>);

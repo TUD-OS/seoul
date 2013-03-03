@@ -83,29 +83,29 @@ public:
     unsigned type;
   };
 private:
-  unsigned long _modaddr;
+  uintptr_t _modaddr;
   unsigned _lowmem;
 
   /**
    * Initialize an MBI from the hip.
    */
-  unsigned long init_mbi(unsigned long &rip) {
+  unsigned long init_mbi(uintptr_t &rip) {
 
     MessageHostOp msg1(MessageHostOp::OP_GUEST_MEM, 0UL);
     if (!(_mb.bus_hostop.send(msg1))) Logging::panic("could not find base address %x\n", 0);
     char *physmem = msg1.ptr;
-    unsigned long memsize = msg1.len;
-    unsigned long offset = _modaddr;
+    size_t memsize = msg1.len;
+    size_t offset = _modaddr;
     unsigned long mbi = 0;
     Mbi *m = 0;
 
     // get modules from sigma0
-    for (unsigned modcount = 0; ; modcount++)
+    for (size_t modcount = 0; ; modcount++)
       {
 	offset = (offset + 0xfff) & ~0xffful;
 	MessageHostOp msg2(modcount + 1, physmem + offset, msg1.len - offset);
 	if (!(_mb.bus_hostop.send(msg2)) || !msg2.size)  break;
-	Logging::printf("\tmodule %x start %p+%lx cmdline %40s\n", modcount, msg2.start, msg2.size, msg2.cmdline);
+	Logging::printf("\tmodule %lx start %p+%lx cmdline %40s\n", modcount, msg2.start, msg2.size, msg2.cmdline);
 	switch(modcount)
 	  {
 	  case 0:
@@ -162,11 +162,11 @@ private:
   bool  receive(MessageBios &msg) {
 
     if (msg.irq != 0x19) return false;
-    Logging::printf(">\t%s rip %x ilen %x cr0 %x efl %x\n", __PRETTY_FUNCTION__,
+    Logging::printf(">\t%s rip %x ilen %lx cr0 %lx efl %x\n", __PRETTY_FUNCTION__,
 		    msg.cpu->eip, msg.cpu->inst_len, msg.cpu->cr0, msg.cpu->efl);
 
     long long tsc_off = msg.cpu->tsc_off;
-    unsigned long rip = 0xfffffff0;
+    uintptr_t rip = 0xfffffff0;
     unsigned long mbi;
     if (!(mbi = init_mbi(rip)))  return false;
 
@@ -193,11 +193,11 @@ private:
     return true;
   }
 
-  VirtualBiosMultiboot(Motherboard &mb, unsigned long modaddr, unsigned lowmem) : BiosCommon(mb), _modaddr(modaddr), _lowmem(lowmem) {}
+  VirtualBiosMultiboot(Motherboard &mb, uintptr_t modaddr, unsigned lowmem) : BiosCommon(mb), _modaddr(modaddr), _lowmem(lowmem) {}
 };
 
 
-unsigned long _vbios_multiboot_modaddr = 0x1800000;
+uintptr_t _vbios_multiboot_modaddr = 0x1800000;
 PARAM_HANDLER(vbios_multiboot_modaddr,
 	      "vbios_multiboot_modaddr:modaddr - override the default modaddr parameter of vbios_multiboot")
 {_vbios_multiboot_modaddr = argv[0];}

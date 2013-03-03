@@ -92,7 +92,7 @@ int helper_STI() {
 template<unsigned operand_size>
 void __attribute__((regparm(3)))  helper_LEA()
 {
-  unsigned *tmp_dst = get_reg32((_entry->data[_entry->offset_opcode] >> 3) & 0x7);
+  mword *tmp_dst = get_reg32((_entry->data[_entry->offset_opcode] >> 3) & 0x7);
   unsigned  virt = modrm2virt();
   move<operand_size>(tmp_dst, &virt);
 }
