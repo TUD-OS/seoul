@@ -50,7 +50,7 @@ class HostPit : public StaticReceiver<HostPit>
     :  _bus_hwioout(bus_hwioout), _bus_timeout(bus_timeout), _clock(clock), _period(period), _iobase(iobase), _irq(irq)
   {
     unsigned long long value = FREQ*period;
-    Math::div64(value, 1000000);
+    Math::moddiv<unsigned long long>(value, 1000000);
     if (!value || (value > 65535))
       Logging::panic("%s unsupported period %x -> value %llx\n",__PRETTY_FUNCTION__, period, value);
     outb(0x34, iobase + 3);

@@ -217,7 +217,7 @@ class VirtualBiosDisk : public StaticReceiver<VirtualBiosDisk>, public BiosCommo
 	    params.pheads = 255;
 	    params.psectors = 63;
 	    unsigned long long sectors =  _disk_params[disk_nr].sectors;
-	    Math::div64(sectors, params.psectors*params.pheads);
+	    Math::moddiv<unsigned long long>(sectors, params.psectors*params.pheads);
 	    params.pcylinders = sectors;
 	    params.size = 0x1a;
 	    params.sectorsize = 512;

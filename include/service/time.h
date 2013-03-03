@@ -49,7 +49,7 @@ static inline timevalue mktime(struct tm_simple *tm)
 
 static inline unsigned moddiv(timevalue &value, unsigned divider)
 {
-  unsigned mod = Math::div64(value, divider);
+  unsigned mod = Math::moddiv<timevalue>(value, divider);
   unsigned d = value;
   value = mod;
   return d;
@@ -59,11 +59,11 @@ static inline void gmtime(timevalue seconds, struct tm_simple *tm)
 {
   // move from 1970 to 1 as epoch, to be able to use division with positive values
   seconds       = seconds + (719528ull - 366ull)*86400ull;
-  tm->sec       = Math::div64(seconds, 60);
-  tm->min       = Math::div64(seconds, 60);
-  tm->hour      = Math::div64(seconds, 24);
+  tm->sec       = Math::moddiv<timevalue>(seconds, 60);
+  tm->min       = Math::moddiv<timevalue>(seconds, 60);
+  tm->hour      = Math::moddiv<timevalue>(seconds, 24);
   timevalue days= seconds++;
-  tm->wday      = Math::div64(seconds, 7);
+  tm->wday      = Math::moddiv<timevalue>(seconds, 7);
   unsigned years400 = moddiv(days, 4*36524+1);
   unsigned years100 = moddiv(days, 36524);
   // overflow on a 400year boundary?

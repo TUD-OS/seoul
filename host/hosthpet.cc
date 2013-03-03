@@ -82,7 +82,7 @@ public:
     : _bus_timeout(bus_timeout), _clock(clock), _regs(reinterpret_cast<HostHpetRegister *>(iomem)), _timerreg(_regs->timer + timer), _irq(theirq)
   {
     _freq = 1000000000000000ull;
-    Math::div64(_freq, _regs->period);
+    Math::moddiv<unsigned long long>(_freq, _regs->period);
     _mindelta = Math::muldiv128(maxfreq, 1, _freq);
 
     // get the IRQ number
