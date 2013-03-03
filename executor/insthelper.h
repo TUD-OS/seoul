@@ -787,8 +787,8 @@ int idt_traversal(unsigned event, unsigned error_code)
 	    if (~desc.ar0 & 0x80) NP(idt.base0 | ext);
 
 	    if (desc.ar0 & 0x8)  newcpl = desc.dpl();
-	    Logging::printf("IDT ar %x dpl %x cpl %x sel %x vec %x eip %x/%x/%x\n", desc.ar0, desc.dpl(), _cpu->cpl(), idt.base0, event,
-			    _cpu->eip, _cpu->cs.sel, old_efl);
+	    // Logging::printf("IDT ar %x dpl %x cpl %x sel %x vec %x eip %x/%x/%x\n", desc.ar0, desc.dpl(), _cpu->cpl(), idt.base0, event,
+	    //     	    _cpu->eip, _cpu->cs.sel, old_efl);
 
 	    if (!_cpu->v86())
 	      {
