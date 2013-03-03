@@ -17,58 +17,34 @@
  */
 #pragma once
 
+#include <nul/types.h>
 
-#define union64(HIGH, LOW)          ({ unsigned long long res; asm ("" : "=A"(res) : "d"(HIGH), "a"(LOW)); res; })
-#define split64(INPUT, HIGH, LOW)   asm ("" : "=d"(HIGH), "=a"(LOW) : "A"(INPUT));
+#define union64(HIGH, LOW)          (static_cast<uint64>(HIGH) << 32 | (LOW))
 
 struct Math
 {
   /**
+   * Divides <value> by <divisor> and returns the remainder
+   */
+  template<typename T>
+  static T moddiv(T &value, T divisor) {
+    T res = value % divisor;
+    value /= divisor;
+    return res;
+  }
+
+  /**
    * We are limited here by the ability to divide through a unsigned
    * long value, thus factor and divisor needs to be less than 1<<32.
    */
-  static unsigned long long muldiv128(unsigned long long value, unsigned long factor, unsigned long divisor) {
-    unsigned low, high;
-    split64(value, high, low);
-    unsigned long long lower = static_cast<unsigned long long>(low)*factor;
-    unsigned long long upper = static_cast<unsigned long long>(high)*factor;
-    unsigned rem = div64(upper, divisor);
-    lower += static_cast<unsigned long long>(rem) << 32;
-    div64(lower, divisor);
-
-    // this cuts the 96 bits to 64bits
+  static uint64 muldiv128(uint64 value, uint64 factor, uint64 divisor) {
+    uint32 low = value & 0xFFFFFFFF;
+    uint32 high = value >> 32;
+    uint64 lower = static_cast<uint64>(low) * factor;
+    uint64 upper = static_cast<uint64>(high) * factor;
+    uint32 rem = moddiv<uint64>(upper, divisor);
+    lower += static_cast<uint64>(rem) << 32;
+    lower /= divisor;
     return (upper << 32) + lower;
-  }
-
-  /**
-   * Divide a 64bit value through a 32bit value. Returns the remainder.
-   */
-  static  unsigned div64(unsigned long long &value, unsigned divisor) {
-    unsigned vhigh;
-    unsigned vlow;
-    split64(value, vhigh, vlow);
-    unsigned rem  = vhigh % divisor;
-    vhigh = vhigh / divisor;
-    asm ("divl %2" : "+a"(vlow), "+d"(rem) : "rm"(divisor));
-    value = union64(vhigh, vlow);
-    return rem;
-  }
-
-
-  /**
-   * Divide a 64bit signed value through a 32bit value. Returns the remainder.
-   */
-  static  int idiv64(long long &value, int divisor) {
-    bool sv, sd;
-    if ((sv = value < 0))  value = -value;
-    if ((sd = divisor < 0))  divisor = -divisor;
-
-    unsigned long long v = value;
-    unsigned rem =  div64(v, static_cast<unsigned>(divisor));
-    value = v;
-    if (sv) rem = -rem;
-    if (sv ^ sd) value = -value;
-
-    return rem;
   }
 };

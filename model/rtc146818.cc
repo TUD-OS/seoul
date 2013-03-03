@@ -215,7 +215,7 @@ class Rtc146818 : public StaticReceiver<Rtc146818>
     seconds++;
 
     // split the current time in multiple of periods (time) and the remainder (now)
-    unsigned now = Math::div64(seconds, period);
+    unsigned now = Math::moddiv<timevalue>(seconds, period);
 
     // is the next alarm in the future?
     if (now <= start)  return seconds * period + start;

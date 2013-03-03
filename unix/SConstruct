@@ -1,8 +1,13 @@
 # -*- Mode: Python -*-
 
+import subprocess
+
+archchk = subprocess.Popen(['uname', '-m'], stdout=subprocess.PIPE, stderr=None)
+arch = 'x86_64' if archchk.communicate()[0].rstrip() == "x86_64" else 'x86_32'
+
 env = Environment(CPPPATH = ['../include', "include"],
-                  LINKFLAGS = '-m32 -g -pthread ',
-                  CCFLAGS = '-march=native -m32 -g -O1 -fno-strict-aliasing -Wall -Wextra -Wno-unused-parameter -Wno-parentheses -pthread',
+                  LINKFLAGS = '-g',
+                  CCFLAGS = ' -march=native -g -fno-strict-aliasing -Wall -Wextra -Wno-unused-parameter -Wno-parentheses',
                   CXXFLAGS = '-std=gnu++11 -fno-rtti -fno-exceptions')
 
 cc   = ARGUMENTS.get('cc')
@@ -56,42 +61,55 @@ for f in ['mmio', 'pci']:
     env.Command('../include/model/intel82576vf%s.inc' % f, ['../model/intel82576vf/genreg.py', '../model/intel82576vf/reg_%s.py' % f],
                      '${SOURCES[0]} ${SOURCES[1:]} ${TARGET}')
 
-seoul = env.Program('seoul',
-                    [
-                     '../model/memorycontroller.cc',
-                     '../model/nullio.cc',
-                     '../model/pic8259.cc',
-                     '../model/pit8254.cc',
-                     '../model/sysctrlport.cc',
-                     '../model/keyboardcontroller.cc',
-                     '../model/ps2keyboard.cc',
-                     '../model/ps2mouse.cc',
-                     '../model/rtc146818.cc',
-                     '../model/serial16550.cc',
-                     '../model/sink.cc',
-                     '../model/vga.cc',
-                     '../model/intel82576vf.cc',
-                     '../model/rtl8029.cc',
-                     '../model/ahcicontroller.cc',
-                     '../model/satadrive.cc',
-                     '../executor/vbios_disk.cc',
-                     '../executor/vbios_keyboard.cc',
-                     '../executor/vbios_mem.cc',
-                     '../executor/vbios_multiboot.cc',
-                     '../executor/vbios_reset.cc',
-                     '../executor/vbios_time.cc',
-                     '../model/ioapic.cc',
-                     '../model/pcihostbridge.cc',
-                     '../model/pmtimer.cc',
-                     '../model/vcpu.cc',
-                     '../model/vbios.cc',
-                     '../model/lapic.cc',
-                     '../model/msi.cc',
-                     '../executor/halifax.cc',
-                     '../host/hostkeyboard.cc',
-                     ] +
-                    Glob('*.cc'))
+verbose = ARGUMENTS.get('VERBOSE',0)
+if int(verbose) == 0:
+    env['CCCOMSTR'] = "CC $TARGET"
+    env['CXXCOMSTR'] = "CXX $TARGET"
+    env['LINKCOMSTR'] = "LD $TARGET"
 
+debug = ARGUMENTS.get('DEBUG',0)
+
+halienv = env.Clone()
+halienv.Append(CXXFLAGS = ' -O3' if not debug else ' -O1')
+halifax = halienv.Object('../executor/halifax.cc')
+
+env.Append(CXXFLAGS = ' -O3' if not debug else ' -O0')
+sources = Glob('*.cc') + [
+    '../model/memorycontroller.cc',
+    '../model/nullio.cc',
+    '../model/pic8259.cc',
+    '../model/pit8254.cc',
+    '../model/sysctrlport.cc',
+    '../model/keyboardcontroller.cc',
+    '../model/ps2keyboard.cc',
+    '../model/ps2mouse.cc',
+    '../model/rtc146818.cc',
+    '../model/serial16550.cc',
+    '../model/sink.cc',
+    '../model/vga.cc',
+    '../model/rtl8029.cc',
+    '../model/ahcicontroller.cc',
+    '../model/satadrive.cc',
+    '../executor/vbios_disk.cc',
+    '../executor/vbios_keyboard.cc',
+    '../executor/vbios_mem.cc',
+    '../executor/vbios_multiboot.cc',
+    '../executor/vbios_reset.cc',
+    '../executor/vbios_time.cc',
+    '../model/ioapic.cc',
+    '../model/pcihostbridge.cc',
+    '../model/pmtimer.cc',
+    '../model/vcpu.cc',
+    '../model/vbios.cc',
+    '../model/lapic.cc',
+    '../model/msi.cc',
+    '../host/hostkeyboard.cc',
+]
+# TODO not yet ported
+if arch == 'x86_32':
+	sources += '../model/intel82576vf.cc'
+
+seoul = env.Program('seoul', sources + halifax, LIBS = ['pthread', 'rt'])
 Default(seoul)
 
 # EOF
