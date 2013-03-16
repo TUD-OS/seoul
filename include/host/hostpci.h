@@ -92,12 +92,12 @@ class HostPci
 	      {
 		unsigned bdf =  (bus << 8) | (dev << 3) | func;
 		unsigned value = conf_read(bdf, 2);
-		if (value == ~0UL) continue;
+		if (value == ~0U) continue;
 		if (maxfunc == 1 && conf_read(bdf, 3) & 0x800000)
 		  maxfunc = 8;
-		if ((theclass == ~0UL || ((value >> 24) & 0xff) == theclass)
-		    && (subclass == ~0UL || ((value >> 16) & 0xff) == subclass)
-		    && (instance == ~0UL || !instance--))
+		if ((theclass == ~0U || ((value >> 24) & 0xff) == theclass)
+		    && (subclass == ~0U || ((value >> 16) & 0xff) == subclass)
+		    && (instance == ~0U || !instance--))
 		  return bdf;
 	      }
 	  }
@@ -120,7 +120,7 @@ class HostPci
 
 	unsigned bdf =  (dev << 3) | func;
 	unsigned value = conf_read(bdf, 2);
-	if (value == ~0UL) continue;
+	if (value == ~0U) continue;
 
 	unsigned char header = conf_read(bdf, 3) >> 16;
 	if (maxfunc == 1 && header & 0x80)  maxfunc = 8;
@@ -145,7 +145,7 @@ class HostPci
     unsigned msi_offset = find_cap(bdf, CAP_MSI);
     if (!(msix_offset || msi_offset)) Logging::panic("No MSI support in %x for %x", bdf, nr);
 
-    MessageHostOp msg1 = msg1.attach_msi(~0UL, true, bdf, "gsi msi");
+    MessageHostOp msg1 = msg1.attach_msi(~0U, true, bdf, "gsi msi");
     if (!bus_hostop.send(msg1)) Logging::panic("could not attach to msi for bdf %x\n", bdf);
     if (!msg1.msi_address)  Logging::printf("Attach to MSI %x failed for bdf %x with (%llx,%x) - IRQs may be broken!\n", nr, bdf, msg1.msi_address, msg1.msi_value);
 
@@ -211,7 +211,7 @@ class HostPci
 
     // attach to the IRQ
     MessageHostOp msg = MessageHostOp::attach_irq(msg3.gsi | (level ? 0x100 : 0), ~0U, true, "pci");
-    if (!bus_hostop.send(msg)) return ~0ul;
+    if (!bus_hostop.send(msg)) return ~0U;
     return msg3.gsi;
   }
 
@@ -238,7 +238,7 @@ class HostPci
   {
     unsigned header, offset;
 
-    if ((find_cap(bdf, CAP_PCIE)) && (~0UL != conf_read(bdf, 0x40)))
+    if ((find_cap(bdf, CAP_PCIE)) && (~0U != conf_read(bdf, 0x40)))
       for (offset = 0x100, header = conf_read(bdf, offset >> 2);
 	   offset != 0;
 	   offset = header >> 20, header = conf_read(bdf, offset >> 2))
