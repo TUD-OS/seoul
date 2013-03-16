@@ -41,14 +41,14 @@ class HostSink : public StaticReceiver<HostSink>
     if (msg.serial != _hdev)   return false;
     if (msg.ch == '\r')
       return true;
-    if (msg.ch == '\n' || _count == _size -1)
+    if (msg.ch == '\n' || _count == _size)
       {
 	_buffer[_count] = 0;
 	if (_overflow)
 	  Logging::printf("%c %c   %s\n", _head_char, _cont_char, _buffer);
 	else
 	  Logging::printf("%c   %s\n", _head_char, _buffer);
-	_overflow = _count == _size -1;
+	_overflow = _count == _size;
 	_count = 0;
       }
     if (msg.ch != '\n')
@@ -62,7 +62,7 @@ class HostSink : public StaticReceiver<HostSink>
       size = 1;
     _head_char = (head_char == ~0U) ? '#' : head_char;
     _cont_char = (cont_char == ~0U) ? '|' : cont_char;
-    _buffer = new unsigned char[size];
+    _buffer = new unsigned char[size + 1];
   }
 };
 
