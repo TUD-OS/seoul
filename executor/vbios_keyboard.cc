@@ -268,7 +268,7 @@ public:
   }
 
 
-  VirtualBiosKeyboard(Motherboard &mb) : BiosCommon(mb) {
+  VirtualBiosKeyboard(Motherboard &mb) : BiosCommon(mb), _lastkey() {
 
     // create hostmb and hostkeyb
     _hostmb = new Motherboard(mb.clock(), mb.hip());

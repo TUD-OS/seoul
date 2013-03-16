@@ -301,7 +301,7 @@ public:
   }
 
 
-  VirtualBiosReset(Motherboard &mb) : BiosCommon(mb) {}
+  VirtualBiosReset(Motherboard &mb) : BiosCommon(mb), _mem_ptr(), _mem_size(), _resources() {}
 };
 
 PARAM_HANDLER(vbios_reset,

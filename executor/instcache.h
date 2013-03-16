@@ -580,5 +580,5 @@ public:
     msg.mtr_out = _mtr_out;
   }
 
- InstructionCache(VCpu *vcpu) : MemTlb(vcpu->mem, vcpu->memregion), _values(), _vcpu(vcpu) { }
+ InstructionCache(VCpu *vcpu) : MemTlb(vcpu->mem, vcpu->memregion), _pos(), _tags(), _values(), _vcpu(vcpu), _entry(), _oeip(), _oesp(), _ointr_state(), _dr6(), _dr(), _fpustate() { }
 };

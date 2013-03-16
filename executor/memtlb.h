@@ -207,5 +207,5 @@ protected:
   }
 
 
-  MemTlb(DBus<MessageMem> &mem, DBus<MessageMemRegion> &memregion) : MemCache(mem, memregion) {}
+  MemTlb(DBus<MessageMem> &mem, DBus<MessageMemRegion> &memregion) : MemCache(mem, memregion), _cpu(), _pdpt(), _msr_efer(), _paging_mode(), tlb_fill_func() {}
 };
