@@ -231,7 +231,7 @@ public:
 
 
   PciHostBridge(Motherboard &mb, unsigned busnum, unsigned buscount, unsigned short iobase, uintptr_t membase)
-    :  _mb(mb), _busnum(busnum), _buscount(buscount), _iobase(iobase), _membase(membase) {}
+    :  _mb(mb), _busnum(busnum), _buscount(buscount), _iobase(iobase), _membase(membase), _confaddress(), _cf9() {}
 };
 
 PARAM_HANDLER(pcihostbridge,

@@ -360,7 +360,7 @@ class HostKeyboard : public StaticReceiver<HostKeyboard>
 	       unsigned irq, unsigned irqaux, unsigned char scset, bool verbose)
     : _bus_hwioin(bus_hwioin), _bus_hwioout(bus_hwioout), _bus_input(bus_input),
       _clock(clock), _hostdev(hostdev), _base(base),
-      _irq(irq), _irqaux(irqaux), _scset1(scset == 1), _verbose(verbose)
+      _irq(irq), _irqaux(irqaux), _flags(), _mousestate(), _scset1(scset == 1), _verbose(verbose)
     {}
 
 };

@@ -249,7 +249,7 @@ public:
 
 
   SerialDevice(Motherboard &mb, unsigned short base, unsigned char irq, unsigned hostserial)
-    : _mb(mb), _base(base), _irq(irq), _hostserial(hostserial), _rfcount(0), _triggerlevel(1), _sendmask(0x1f)
+    : _mb(mb), _base(base), _irq(irq), _hostserial(hostserial), _rfifo(), _rfpos(), _rfcount(0), _triggerlevel(1), _sendmask(0x1f)
     {
       memset(_regs, 0, sizeof(_regs));
       _regs[LSR] = 0x60;

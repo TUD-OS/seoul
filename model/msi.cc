@@ -56,7 +56,7 @@ public:
     return _bus_apic.send(msg1);
   }
 
-  Msi(DBus<MessageApic>  &bus_apic) : _bus_apic(bus_apic) {}
+  Msi(DBus<MessageApic>  &bus_apic) : _bus_apic(bus_apic), _lowest_rr() {}
 };
 
 PARAM_HANDLER(msi,
