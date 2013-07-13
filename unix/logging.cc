@@ -119,7 +119,7 @@ PARAM_HANDLER(logging,
   MessageHostOp msg(MessageHostOp::OP_ALLOC_FROM_GUEST, fbsize);
   MessageHostOp msg2(MessageHostOp::OP_GUEST_MEM, 0UL);
   if (!mb.bus_hostop.send(msg) || !mb.bus_hostop.send(msg2))
-    Logging::panic("%s failed to alloc %d from guest memory\n", __PRETTY_FUNCTION__, fbsize);
+    Logging::panic("%s failed to alloc %zu from guest memory\n", __PRETTY_FUNCTION__, fbsize);
 
   LoggingView *v = new LoggingView(mb.bus_console, msg2.ptr + msg.phys, fbsize);
   view = v;

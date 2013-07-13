@@ -443,7 +443,7 @@ static bool receive(Device *, MessageNetwork &msg)
 
   switch (msg.type) {
   case MessageNetwork::PACKET:
-    Logging::printf("packet %u bytes\n", msg.len);
+    Logging::printf("packet %zu bytes\n", msg.len);
     if (tap_fd and msg.buffer != network_pbuf) {
       res = write(tap_fd, msg.buffer, msg.len);
       if (res != static_cast<int>(msg.len)) perror("write to tap");
