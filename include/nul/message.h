@@ -452,6 +452,7 @@ struct MessageHostOp
       OP_VCPU_BLOCK,
       OP_VCPU_RELEASE,
       OP_WAIT_CHILD,
+      OP_NEXT_DIRTY_PAGE,
     } type;
   union {
     unsigned long value;

@@ -4,6 +4,8 @@
  * Copyright (C) 2012, Julian Stecklina <jsteckli@os.inf.tu-dresden.de>
  * Economic rights: Technische Universitaet Dresden (Germany)
  *
+ * Copyright (C) 2013 Jacek Galowicz, Intel Corporation.
+ *
  * This file is part of Seoul.
  *
  * Seoul is free software: you can redistribute it and/or modify it
@@ -166,6 +168,12 @@ static std::vector<Disk> disks;
 // Used to serialize all operations (for now).
 pthread_mutex_t irq_mtx;
 
+// Relevant to live migration
+
+// the memory remapping procedure should only
+// remap memory in page size granularity, if set
+bool _track_page_usage = false;
+
 static void skip_instruction(CpuMessage &msg)
 {
   // advance EIP
@@ -316,6 +324,62 @@ static bool receive(Device *, MessageHostOp &msg)
       msg.mac = mac_prefix << 16 | mac_host;
       break;
     }
+    case MessageHostOp::OP_NEXT_DIRTY_PAGE: {
+        /*
+         * What this does when it is properly implemented:
+         * - There is a variable "pageptr" which points
+         *   to a page number.
+         * - The user emits this message host op when
+         *   he wants a dirty page region
+         * - pageptr is moved incrementally until
+         *   a dirty page region is found.
+         *   This page region is then remapped RO
+         *   and returned to the user as a CRD description
+         * - pageptr wraps around if it exceeds guest mem size.
+         */
+#if PORTED_TO_UNIX
+        static unsigned long pageptr = 0;
+        const unsigned physpages = _physsize >> 12;
+
+        // Setting this to true makes the map_memory_helper function
+        // remap with page size
+        _track_page_usage = true;
+
+        Crd reg = nova_lookup(Crd(pageptr, 0, DESC_MEM_ALL));
+        // There will be several mappings, but we want to see the ones
+        // which are set to "writable by the guest"
+
+        unsigned long oldptr = pageptr;
+        while (!(reg.attr() & DESC_RIGHT_W)) {
+            pageptr = (pageptr + 1) % physpages;
+            if (pageptr == oldptr) {
+                // Come back later, please.
+                msg.value = 0;
+                return true;
+        }
+
+        reg = nova_lookup(Crd(pageptr, 0, DESC_MEM_ALL));
+        }
+
+        // reg now describes a region which is guest-writable
+        // This means that the guest wrote to it before and it is considered "dirty"
+
+        // Tell the user "where" and "how many"
+        msg.phys    = pageptr << 12;
+        msg.phys_len = reg.order();
+
+        msg.value = reg.value();
+
+        // Make this page read-only for the guest, so it is considered "clean" now.
+        nova_revoke(Crd((reg.base() + _physmem) >> 12, reg.order(),
+        DESC_RIGHT_W | DESC_TYPE_MEM), false);
+        pageptr += 1 << reg.order();
+        if (pageptr >= physpages) pageptr = 0;
+#endif
+        return true;
+    }
+    break;
+
     default:
       Logging::panic("%s - unimplemented operation %#x\n",
                        __PRETTY_FUNCTION__, msg.type);
