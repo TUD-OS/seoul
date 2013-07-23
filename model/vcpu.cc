@@ -397,6 +397,11 @@ public:
 
   bool receive(CpuMessage &msg) {
 
+    if (msg.type == CpuMessage::TYPE_ADD_TSC_OFF) {
+        _reset_tsc_off += msg.current_tsc_off;
+        return true;
+    }
+
     // TSC drift compensation.
     if (msg.type != CpuMessage::TYPE_CPUID_WRITE && msg.mtr_in & MTD_TSC && ~msg.mtr_out & MTD_TSC) {
       COUNTER_INC("tsc adoption");
@@ -460,6 +465,7 @@ public:
     case CpuMessage::TYPE_SINGLE_STEP:
     case CpuMessage::TYPE_WBINVD:
     case CpuMessage::TYPE_INVD:
+    case CpuMessage::TYPE_ADD_TSC_OFF:
     default:
       return false;
     }

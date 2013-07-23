@@ -38,7 +38,8 @@ struct CpuMessage {
     TYPE_WBINVD,
     TYPE_CHECK_IRQ,
     TYPE_CALC_IRQWINDOW,
-    TYPE_SINGLE_STEP
+    TYPE_SINGLE_STEP,
+    TYPE_ADD_TSC_OFF,
   } type;
   union {
     struct {
