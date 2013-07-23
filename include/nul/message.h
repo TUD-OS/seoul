@@ -752,4 +752,52 @@ struct MessageNetwork
   MessageNetwork(unsigned type, unsigned client) : type(type), mac(0), client(client) { }
 };
 
+struct MessageRestore
+{
+    enum networkStrings {
+        MAGIC_STRING_DEVICE_DESC = 0x8D06F00D
+    };
+
+    enum restoreTypes {
+        RESTORE_RESTART = 0, // RESTART is sent over the restore bus for initialization
+        RESTORE_TIMEOUTLIST,
+        RESTORE_PIC,
+        RESTORE_LAPIC,
+        RESTORE_PIT,
+        RESTORE_VGA,
+        RESTORE_NIC,
+        RESTORE_ACPI,
+        RESTORE_VCPU,
+        RESTORE_LAST,
+        // This one is acutally a restore device type:
+        // vga.cc will react on this, printing messages on the guest screen.
+        VGA_DISPLAY_GUEST,
+        VGA_VIDEOMODE,
+        // This is for pass-through devices. They will un-/replug themselves
+        // out of/into the guest before/after live migration
+        PCI_PLUG,
+    };
+    unsigned long magic_string;
+    // Use these enums on devtype
+    unsigned devtype;
+    // The device will note down how many bytes of this structure it actually uses.
+    mword bytes;
+    // Two variables which every device type can use for identification
+    unsigned id1;
+    unsigned id2;
+    // write=true: Writing a device state onto disk. false: Reading back from disk
+    bool write;
+
+    // Space for saving the device state
+    char *space;
+
+    MessageRestore(unsigned _devtype, char *_space, bool _write) :
+        magic_string(MAGIC_STRING_DEVICE_DESC), devtype(_devtype),
+        bytes(0), id1(0), id2(0), write(_write), space(_space)
+    {}
+    bool magic_string_check() { return magic_string == MAGIC_STRING_DEVICE_DESC; }
+};
+
+
+
 /* EOF */
