@@ -6,6 +6,8 @@
  * Copyright (C) 2009, Bernhard Kauer <bk@vmmon.org>
  * Economic rights: Technische Universitaet Dresden (Germany)
  *
+ * Copyright (C) 2013 Jacek Galowicz, Intel Corporation.
+ *
  * This file is part of Vancouver.
  *
  * Vancouver is free software: you can redistribute it and/or modify
@@ -254,6 +256,7 @@ struct MessageLegacy
       INTR,
       DEASS_INTR,
       INTA,
+      UNLOCK,
     } type;
   unsigned value;
   MessageLegacy(Type _type, unsigned _value=0) : type(_type), value(_value) {}
