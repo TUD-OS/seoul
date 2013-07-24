@@ -4,6 +4,8 @@
  * Copyright (C) 2007-2009, Bernhard Kauer <bk@vmmon.org>
  * Economic rights: Technische Universitaet Dresden (Germany)
  *
+ * Copyright (C) 2013 Jacek Galowicz, Intel Corporation.
+ *
  * This file is part of Vancouver.
  *
  * Vancouver is free software: you can redistribute it and/or modify
@@ -370,6 +372,8 @@ class PitDevice : public StaticReceiver<PitDevice>
   static const unsigned COUNTER = 3;
   PitCounter _c[COUNTER];
 
+  bool _restore_processed;
+
  public:
 
   bool  receive(MessagePit &msg)
@@ -421,9 +425,36 @@ class PitDevice : public StaticReceiver<PitDevice>
    return true;
  }
 
+ bool receive(MessageRestore &msg)
+ {
+     const mword bytes = reinterpret_cast<mword>(&_restore_processed)
+         -reinterpret_cast<mword>(&_base);
+
+     if (msg.devtype == MessageRestore::RESTORE_RESTART) {
+         _restore_processed = false;
+         msg.bytes += bytes + sizeof(msg);
+         return false;
+     }
+
+     if (msg.devtype != MessageRestore::RESTORE_PIT || _restore_processed) return false;
+
+     if (msg.write) {
+         msg.bytes = bytes;
+         memcpy(msg.space, reinterpret_cast<void*>(&_base), bytes);
+
+     }
+     else {
+         memcpy(reinterpret_cast<void*>(&_base), msg.space, bytes);
+     }
+
+     //Logging::printf("%s PIT\n", msg.write?"Saved":"Restored");
+     _restore_processed = true;
+     return true;
+ }
+
 
   PitDevice(Motherboard &mb, unsigned short base, unsigned irq, unsigned pit)
-    : _base(base), _addr(pit*COUNTER)
+    : _base(base), _addr(pit*COUNTER), _restore_processed(false)
   {
     for (unsigned i=0; i < COUNTER; i++)
       {
@@ -449,4 +480,5 @@ PARAM_HANDLER(pit,
   mb.bus_ioin.add(dev,  PitDevice::receive_static<MessageIOIn>);
   mb.bus_ioout.add(dev, PitDevice::receive_static<MessageIOOut>);
   mb.bus_pit.add(dev,   PitDevice::receive_static<MessagePit>);
+  mb.bus_restore.add(dev, PitDevice::receive_static<MessageRestore>);
 } 
