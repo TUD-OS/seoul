@@ -653,6 +653,8 @@ int main(int argc, char **argv)
   mb.bus_network.add(nullptr, receive);
   mb.bus_disk   .add(nullptr, receive);
 
+  mb.bus_restore.add(&timeouts, TimeoutList<32, void>::receive_static<MessageRestore>);
+
   // Synchronization initialization
   if (0 != pthread_mutex_init(&irq_mtx, nullptr)) {
     perror("pthread_mutex_init");
