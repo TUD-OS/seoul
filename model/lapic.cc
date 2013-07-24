@@ -4,6 +4,8 @@
  * Copyright (C) 2010, Bernhard Kauer <bk@vmmon.org>
  * Economic rights: Technische Universitaet Dresden (Germany)
  *
+ * Copyright (C) 2013 Jacek Galowicz, Intel Corporation.
+ *
  * This file is part of Vancouver.
  *
  * Vancouver is free software: you can redistribute it and/or modify
@@ -32,8 +34,11 @@
  */
 class Lapic : public DiscoveryHelper<Lapic>, public StaticReceiver<Lapic>
 {
+    int _regstart;
 #define VMM_REGBASE "../model/lapic.cc"
 #include "model/reg.h"
+    int _regend;
+
   enum {
     MAX_FREQ   = 200000000,
     LVT_MASK_BIT = 16,
@@ -64,6 +69,7 @@ private:
   bool      _rirr[NUM_LVT];
   unsigned  _lowest_rr;
 
+  bool _restore_processed;
 
   bool sw_disabled() { return ~_SVR & 0x100; }
   bool hw_disabled() { return ~_msr & 0x800; }
@@ -738,8 +744,40 @@ public:
     }
   }
 
+  bool receive(MessageRestore &msg)
+  {
+      const mword bytes = reinterpret_cast<mword>(&_restore_processed)
+          -reinterpret_cast<mword>(&_timer);
 
-  Lapic(Motherboard &mb, VCpu *vcpu, unsigned initial_apic_id, unsigned timer) : _mb(mb), _vcpu(vcpu), _initial_apic_id(initial_apic_id), _timer(timer)
+      const mword bytes2 = reinterpret_cast<mword>(&_regend) - reinterpret_cast<mword>(&_regstart);
+
+      if (msg.devtype == MessageRestore::RESTORE_RESTART) {
+          _restore_processed = false;
+          msg.bytes += bytes + bytes2 + sizeof(msg);
+          return false;
+      }
+
+      if (msg.devtype != MessageRestore::RESTORE_LAPIC || _restore_processed) return false;
+
+      if (msg.write) {
+          msg.bytes = bytes + bytes2;
+          memcpy(msg.space, reinterpret_cast<void*>(&_timer), bytes);
+          memcpy(msg.space + bytes, reinterpret_cast<void*>(&_regstart), bytes2);
+      }
+      else {
+          memcpy(reinterpret_cast<void*>(&_timer), msg.space, bytes);
+          memcpy(reinterpret_cast<void*>(&_regstart), msg.space + bytes, bytes2);
+      }
+
+      Logging::printf("%s LAPIC\n", msg.write?"Saved":"Restored");
+
+      _restore_processed = true;
+      return true;
+  }
+
+
+  Lapic(Motherboard &mb, VCpu *vcpu, unsigned initial_apic_id, unsigned timer)
+      : _mb(mb), _vcpu(vcpu), _initial_apic_id(initial_apic_id), _timer(timer), _restore_processed(false)
   {
     // find a FREQ that is not too high
     for (_timer_clock_shift=0; _timer_clock_shift < 32; _timer_clock_shift++)
@@ -762,11 +800,12 @@ public:
     mb.bus_apic.add(this,     receive_static<MessageApic>);
     mb.bus_timeout.add(this,  receive_static<MessageTimeout>);
     mb.bus_discovery.add(this,discover);
+    mb.bus_restore.add(this, receive_static<MessageRestore>);
+
     vcpu->executor.add(this,  receive_static<CpuMessage>);
     vcpu->mem.add(this,       receive_static<MessageMem>);
     vcpu->memregion.add(this, receive_static<MessageMemRegion>);
     vcpu->bus_lapic.add(this, receive_static<LapicEvent>);
-
   }
 };
 
