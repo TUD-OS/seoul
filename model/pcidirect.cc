@@ -61,9 +61,18 @@ class DirectPciDevice : public StaticReceiver<DirectPciDevice>, public HostVfPci
     bool     io;
     unsigned short port;
   } _barinfo[MAX_BAR];
-  bool _vf;
+  bool      _vf;
+  unsigned  _map_mode;
+
 
 public:
+
+  enum {
+    MAP_MODE_DISABLED = 0,
+    MAP_MODE_SAFE     = 1,
+    MAP_MODE_UNSAFE   = 2,
+  };
+
   void read_all_bars(unsigned bdf, unsigned long *base, unsigned long *size) {
 
     memset(base, 0, MAX_BAR*sizeof(*base));
@@ -330,8 +339,23 @@ private:
       if (_barinfo[i].io || ! _barinfo[i].size || !in_range(msg.page, _cfgspace[BAR0 + i] >> 12, _barinfo[i].size >> 12)) continue;
 
       msg.start_page = _cfgspace[BAR0 + i] >> 12;
-      msg.count = _barinfo[i].size >> 12;
-      msg.ptr = _barinfo[i].ptr;
+      msg.count      = _barinfo[i].size >> 12;
+      msg.ptr        = _barinfo[i].ptr;
+
+      if (msg.count == 0 and _map_mode == MAP_MODE_SAFE) {
+	Logging::printf(" Could not map BAR %u. %lx is smaller than page size.\n",
+			i, _barinfo[i].size);
+	return false;
+      } else {
+	assert(_map_mode == MAP_MODE_UNSAFE);
+
+	for (unsigned j = 0; j < 5; j++)
+	  Logging::printf(" *** UNSAFE MAPPING OF BAR%u: POTENTIAL SECURTIY RISK ***\n", i);
+
+	// Rounding up BAR size to page size, because the user wants
+	// to shoot himself in the foot.
+	msg.count = 1;
+      }
 
       unsigned msix_size = (16*_irq_count + 0xfff) & ~0xffful;
       unsigned msix_offset = _cfgspace[1 + _msix_cap] & ~0x7;
@@ -343,11 +367,11 @@ private:
 	else {
 	  unsigned long shift = (msix_offset + 0xfff) & ~0xffful;
 	  msg.start_page += shift >> 12;
-	  msg.count -= shift;
-	  msg.ptr += shift;
+	  msg.count      -= shift >> 12;
+	  msg.ptr        += shift;
 	}
       }
-      Logging::printf(" MAP %d %lx+%x from %p size %lx page %lx %x\n", i, msg.start_page << 12, msg.count << 12, msg.ptr, _barinfo[i].size, msg.page, _cfgspace[BAR0 + i]);
+      Logging::printf(" MAP %u %lx+%x from %p size %lx page %lx %x\n", i, msg.start_page << 12, msg.count << 12, msg.ptr, _barinfo[i].size, msg.page, _cfgspace[BAR0 + i]);
       return true;
     }
     return false;
@@ -372,8 +396,11 @@ private:
 
 
 
-  DirectPciDevice(Motherboard &mb, unsigned hbdf, unsigned guestbdf, bool assign, bool use_irqs=true, unsigned parent_bdf = 0, unsigned vf_no = 0, bool map = true)
-    : HostVfPci(mb.bus_hwpcicfg, mb.bus_hostop), _mb(mb), _hostbdf(hbdf), _msix_table(0), _msix_host_table(0), _bar_count(count_bars(_hostbdf))
+  DirectPciDevice(Motherboard &mb, unsigned hbdf, unsigned guestbdf, bool assign,
+		  bool use_irqs=true, unsigned parent_bdf = 0, unsigned vf_no = 0, unsigned map_mode = MAP_MODE_SAFE)
+    : HostVfPci(mb.bus_hwpcicfg, mb.bus_hostop), _mb(mb), _hostbdf(hbdf),
+      _msix_table(0), _msix_host_table(0), _bar_count(count_bars(_hostbdf)),
+      _map_mode(map_mode)
   {
 
     _vf = parent_bdf != 0;
@@ -432,7 +459,7 @@ private:
     mb.bus_ioout.add(this,  DirectPciDevice::receive_static<MessageIOOut>);
     mb.bus_mem.add(this,    DirectPciDevice::receive_static<MessageMem>);
     mb.bus_legacy.add(this, DirectPciDevice::receive_static<MessageLegacy>);
-    if (map)
+    if (map_mode != MAP_MODE_DISABLED)
       mb.bus_memregion.add(this, DirectPciDevice::receive_static<MessageMemRegion>);
     mb.bus_hostirq.add(this,     DirectPciDevice::receive_static<MessageIrq>);
     //mb.bus_irqnotify.add(this, DirectPciDevice::receive_static<MessageIrqNotify>);
@@ -441,18 +468,23 @@ private:
 
 
 PARAM_HANDLER(dpci,
-	      "dpci:class,subclass,instance,bdf,assign=1,irqs=1 - makes the specified hostdevice directly accessible to the guest.",
+	      "dpci:class,subclass,instance,bdf,assign=1,irqs=1,map_mode=1 - makes the specified hostdevice directly accessible to the guest.",
 	      "Example: Use 'dpci:2,,0,0x21' to attach the first network controller to 00:04.1.",
 	      "If class or subclass is ommited it is not compared. If the instance is ommited the last instance is used.",
 	      "If bdf is zero the very same bdf as in the host is used, if it is ommited a free bdf is used.",
 	      "If assign is zero, the BDF is not assigned via the IOMMU and can not do DMA.",
-	      "If irq is zero, IRQs are disabled.")
+	      "If irq is zero, IRQs are disabled.",
+	      "If unsafe_map is 0, BARs are not mapped to the guest.",
+	      "If unsafe_map is 1, BARs are mapped to the guest. (Default)",
+	      "If unsafe_map is 2, BARs smaller than page size are mapped to the guest (SECURITY RISK!)."
+)
 {
   HostPci  pci(mb.bus_hwpcicfg, mb.bus_hostop);
   unsigned hostbdf  = pci.search_device(argv[0], argv[1], argv[2]);
   Logging::printf("search_device(%lx,%lx,%lx) bdf %x \n", argv[0], argv[1], argv[2], hostbdf);
   check0(!hostbdf, "dpci device not found");
-  new DirectPciDevice(mb, hostbdf, argv[3], argv[4], argv[5]);
+  new DirectPciDevice(mb, hostbdf, argv[3], argv[4], argv[5], 0, 0,
+		      (~argv[6] == 0) ? unsigned(DirectPciDevice::MAP_MODE_SAFE) : argv[6]);
 }
 
 #include "host/hostvf.h"
@@ -483,5 +515,5 @@ PARAM_HANDLER(vfpci,
   check0(!vf_bdf, "XXX VF%d does not exist in parent %x.", vf_no, parent_bdf);
   Logging::printf("VF is at %04x.\n", vf_bdf);
 
-  new DirectPciDevice(mb, 0, argv[3], true, true, parent_bdf, vf_no, true);
+  new DirectPciDevice(mb, 0, argv[3], true, true, parent_bdf, vf_no);
 }
