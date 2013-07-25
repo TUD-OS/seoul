@@ -336,7 +336,7 @@ private:
 
   bool  receive(MessageMemRegion &msg) {
     for (unsigned i=0; i < _bar_count; i++) {
-      if (_barinfo[i].io || ! _barinfo[i].size || !in_range(msg.page, _cfgspace[BAR0 + i] >> 12, _barinfo[i].size >> 12)) continue;
+      if (_barinfo[i].io || ! _barinfo[i].size || !in_range(msg.page << 12, _cfgspace[BAR0 + i] & ~0x7, _barinfo[i].size)) continue;
 
       msg.start_page = _cfgspace[BAR0 + i] >> 12;
       msg.count      = _barinfo[i].size >> 12;
