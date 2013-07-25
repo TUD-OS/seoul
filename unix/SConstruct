@@ -118,6 +118,7 @@ sources = Glob('*.cc') + [            # Unix frontend
       '../executor/vbios_time.cc',
       '../model/ioapic.cc',
       '../model/pcihostbridge.cc',
+      '../model/pcidirect.cc',
       '../model/pmtimer.cc',
       '../model/vcpu.cc',
       '../model/vbios.cc',
