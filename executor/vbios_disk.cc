@@ -108,7 +108,7 @@ class VirtualBiosDisk : public StaticReceiver<VirtualBiosDisk>, public BiosCommo
     msg.cpu->esp -= sizeof(frame);
     copy_out(msg.cpu->esp, frame, sizeof(frame));
 
-    if (!disk_op(msg, 0, 0, 0x7c00, 1, false) || msg.cpu->ah)
+    if (!disk_op(msg, 0, 0, 0x7c00, 1, false))
       Logging::panic("VB: could not read MBR from boot disk");
     msg.mtr_out |= MTD_CS_SS | MTD_RIP_LEN | MTD_RSP | MTD_RFLAGS | MTD_GPR_ACDB;
     return true;
