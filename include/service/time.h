@@ -4,6 +4,8 @@
  * Copyright (C) 2009, Bernhard Kauer <bk@vmmon.org>
  * Economic rights: Technische Universitaet Dresden (Germany)
  *
+ * Copyright (C) 2013 Jacek Galowicz, Intel Corporation.
+ *
  * This file is part of Vancouver.
  *
  * Vancouver is free software: you can redistribute it and/or modify
@@ -97,3 +99,29 @@ static inline void gmtime(timevalue seconds, struct tm_simple *tm)
   tm->mon  = m + 1;
   tm->mday = days + 1;
 }
+
+class StopWatch
+{
+private:
+    Clock *_clock;
+    unsigned _frequency;
+    timevalue _tic, _toc;
+
+public:
+    void start()      { _tic = _clock->clock(_frequency); }
+    timevalue stop()  { _toc = _clock->clock(_frequency); return delta(); }
+    timevalue delta() { return _toc - _tic; }
+
+    timevalue abs_start() { return _tic; }
+    timevalue abs_stop()  { return _toc; }
+
+    // Returns B/ms, which is actually kB/s (if using default frequency)
+    unsigned rate(mword bytes) {
+        if (delta()) return bytes / delta();
+        else return 0;
+    }
+
+    StopWatch(Clock *clock, unsigned frequency = 1000 /* ms */)
+        : _clock(clock), _frequency(frequency), _tic(0), _toc(0)
+    {}
+};
