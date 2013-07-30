@@ -379,6 +379,36 @@ static bool receive(Device *, MessageHostOp &msg)
         return true;
     }
     break;
+    case MessageHostOp::OP_GET_CONFIG_STRING: {
+        char *cmdline = NULL;
+
+#if PORTED_TO_UNIX
+        // Retrieve the command line string length from sigma0
+        MessageConsole cmsg(MessageConsole::TYPE_START, cmdline);
+        cmsg.read = true;
+        cmsg.mem = 0;
+        unsigned ret = Sigma0Base::console(cmsg);
+        if (ret) {
+            Logging::printf("Error retrieving the command line"
+                    " string length from sigma0.\n");
+            return false;
+        }
+
+        // Retrieve the command line itself
+        cmdline = new char[cmsg.mem+1];
+        cmsg.mem += 1;
+        cmsg.cmdline = cmdline;
+        ret = Sigma0Base::console(cmsg);
+        if (ret) {
+            Logging::printf("Error retrieving the command line string sigma0.\n");
+            return false;
+        }
+#endif
+
+        msg.obj = cmdline;
+    }
+    break;
+
 
     default:
       Logging::panic("%s - unimplemented operation %#x\n",
