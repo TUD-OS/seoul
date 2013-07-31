@@ -50,6 +50,7 @@
 #include <vector>
 
 #include <seoul/unix.h>
+#include <nul/migration.h>
 
 const char version_str[] =
 #include "version.inc"
@@ -170,6 +171,11 @@ pthread_mutex_t irq_mtx;
 
 // Relevant to live migration
 
+Migration *_migrator;
+Migration::RestoreModes _restore_mode = Migration::MODE_OFF;
+unsigned _migration_ip;
+unsigned _migration_port;
+
 // the memory remapping procedure should only
 // remap memory in page size granularity, if set
 bool _track_page_usage = false;
@@ -239,8 +245,23 @@ static void *vcpu_thread_fn(void *arg)
 
   while (true) {
     pthread_mutex_lock(&irq_mtx);
+
+    if (_restore_mode == Migration::MODE_RECEIVE)
+        // This will block until everything is restored
+        _migrator->listen(_migration_port, &cpu_state);
+    else if (_restore_mode == Migration::MODE_SEND)
+        // This will block if the last memory resend round is reached
+        _migrator->save_guestregs(&cpu_state);
+
     handle_vcpu(false, CpuMessage::TYPE_SINGLE_STEP, vcpu, &cpu_state);
     // Logging::printf("eip %x\n", cpu_state.eip);
+
+    if (_restore_mode == Migration::MODE_RECEIVE) {
+        _restore_mode = Migration::MODE_OFF;
+        delete _migrator;
+        _migrator = NULL;
+        cpu_state.mtd = MTD_ALL;
+    }
     pthread_mutex_unlock(&irq_mtx);
   }
 
@@ -409,6 +430,12 @@ static bool receive(Device *, MessageHostOp &msg)
     }
     break;
 
+    case MessageHostOp::OP_MIGRATION_RETRIEVE_INIT: {
+        _migration_port = msg.value;
+        _restore_mode = Migration::MODE_RECEIVE;
+        _migrator = new Migration(&mb);
+    }
+    break;
 
     default:
       Logging::panic("%s - unimplemented operation %#x\n",
@@ -610,6 +637,32 @@ static bool receive(Device *, MessageDisk &msg)
   return true;
 }
 
+
+static void *migration_thread_fn(void *)
+{
+    _migrator = new Migration(&mb);
+    _migrator->send(_migration_ip, _migration_port);
+
+    delete _migrator;
+    _migrator = nullptr;
+
+    return nullptr;
+}
+
+static void start_migration_to(unsigned ip, unsigned port)
+{
+    _migration_ip = ip;
+    _migration_port = port;
+    _restore_mode = Migration::MODE_SEND;
+
+    pthread_t migthread;
+    if (0 != pthread_create(&migthread, NULL, migration_thread_fn, NULL)) {
+        perror("pthread_create");
+        return;
+    }
+    pthread_setname_np(migthread, "migration");
+}
+
 static void usage()
 {
   fprintf(stderr, "Usage: seoul [-m RAM] [-n tap-device] [kernel parameters] [module1 parameters] ...\n");
@@ -724,6 +777,15 @@ int main(int argc, char **argv)
   Logging::printf("RESET device state\n");
   MessageLegacy msg2(MessageLegacy::RESET, 0);
   mb.bus_legacy.send_fifo(msg2);
+
+  if (_restore_mode != Migration::MODE_OFF) {
+      /*
+       * The following UNLOCK message helps the VCPU out of the lock
+       * it is blocked by and catches it into the recall handler.
+       */
+       MessageLegacy msg3(MessageLegacy::UNLOCK, 0);
+       mb.bus_legacy.send_fifo(msg3);
+  }
 
   pthread_t iothread;
   if (tap_fd) {
