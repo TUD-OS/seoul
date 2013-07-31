@@ -126,6 +126,7 @@ sources = Glob('*.cc') + [            # Unix frontend
       '../model/lapic.cc',
       '../model/msi.cc',
       '../host/hostkeyboard.cc',
+      '../host/migration.cc'
       ]
 # TODO not yet ported
 if target_arch == 'x86_32':

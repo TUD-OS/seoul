@@ -454,6 +454,7 @@ struct MessageHostOp
       OP_WAIT_CHILD,
       OP_NEXT_DIRTY_PAGE,
       OP_GET_CONFIG_STRING,
+      OP_MIGRATION_RETRIEVE_INIT,
     } type;
   union {
     unsigned long value;
