@@ -93,6 +93,7 @@ class VirtualBiosDisk : public StaticReceiver<VirtualBiosDisk>, public BiosCommo
   bool boot_from_disk(MessageBios &msg)
   {
     Logging::printf("boot from disk\n");
+    msg.cpu->ah      = 0;    // We use this for error reporting.
     msg.cpu->ss.sel  = 0;
     msg.cpu->ss.base = 0;
     msg.cpu->esp     = 0x7000;
@@ -108,7 +109,7 @@ class VirtualBiosDisk : public StaticReceiver<VirtualBiosDisk>, public BiosCommo
     msg.cpu->esp -= sizeof(frame);
     copy_out(msg.cpu->esp, frame, sizeof(frame));
 
-    if (!disk_op(msg, 0, 0, 0x7c00, 1, false))
+    if (!disk_op(msg, 0, 0, 0x7c00, 1, false) or (msg.cpu->ah != 0))
       Logging::panic("VB: could not read MBR from boot disk");
     msg.mtr_out |= MTD_CS_SS | MTD_RIP_LEN | MTD_RSP | MTD_RFLAGS | MTD_GPR_ACDB;
     return true;
