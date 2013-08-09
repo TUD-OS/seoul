@@ -38,7 +38,7 @@ public:
     explicit Vancouver(const char **args, size_t count, size_t console, const nre::String &constitle,
                        size_t fbsize)
         : _clock(nre::Hip::get().freq_tsc * 1000), _mb(&_clock, nullptr), _timeouts(_mb),
-          _console(this, fbsize), _conssess("console", console, constitle), _vmmng(),
+          _conssess("console", console, constitle), _console(this, fbsize), _vmmng(),
           _vcpus(), _stdevs() {
         create_devices(args, count);
         create_vcpus();
@@ -88,8 +88,8 @@ private:
     Clock _clock;
     Motherboard _mb;
     Timeouts _timeouts;
-    ConsoleBackend _console;
     nre::ConsoleSession _conssess;
+    ConsoleBackend _console;
     nre::VMManagerSession *_vmmng;
     nre::SList<VCPUBackend> _vcpus;
     StorageDevice *_stdevs[nre::Storage::MAX_CONTROLLER * nre::Storage::MAX_DRIVES];
