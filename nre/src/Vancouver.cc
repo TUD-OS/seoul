@@ -33,6 +33,7 @@
 
 using namespace nre;
 
+static bool initialized = false;
 static size_t ncpu = 1;
 static DataSpace *guest_mem = nullptr;
 static size_t guest_size = 0;
@@ -72,9 +73,12 @@ PARAM_HANDLER(vcpus, " vcpus - instantiate the vcpus defined with 'ncpu'") {
 }
 
 void Vancouver::reset() {
+    if(initialized)
+        globalsm.down();
     Serial::get() << "RESET device state\n";
     MessageLegacy msg2(MessageLegacy::RESET, 0);
     _mb.bus_legacy.send_fifo(msg2);
+    initialized = true;
     globalsm.up();
 }
 
