@@ -169,7 +169,7 @@ private:
 
     // add periods to the time we started to detect the next overflow
     unsigned done = delta % _ICT;
-    _timer_start += (delta - done) << _timer_dcr_shift;
+    _timer_start += timevalue((delta - done)) << _timer_dcr_shift;
 
     return _ICT - done;
   }
@@ -180,7 +180,7 @@ private:
   void update_timer(timevalue now) {
     unsigned value = get_ccr(now);
     if (!value || _TIMER & (1 << LVT_MASK_BIT)) return;
-    MessageTimer msg(_timer, now + (value << _timer_dcr_shift));
+    MessageTimer msg(_timer, now + (timevalue(value) << _timer_dcr_shift));
     _mb.bus_timer.send(msg);
   }
 
@@ -822,7 +822,7 @@ REGSET(Lapic,
 		 * Move timer_start in the past, which what would be
 		 * already done on this period with the current speed.
 		 */
-		_timer_start     = now - (done << _timer_dcr_shift);
+		_timer_start     = now - (timevalue(done) << _timer_dcr_shift);
 		update_timer(now);
 	      }
 	      ))
