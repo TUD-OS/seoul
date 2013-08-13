@@ -133,9 +133,9 @@ def generate_functions(name, flags, snippet, enc, functions, l2):
         # Be sure to duplicate %s
         snippet = ['asm volatile("'+ ";".join([re.sub(r'([^%])%([^%0-9])', r'\1%%\2', s) for s in snippet])+'" : "+d"(tmp_src), "+c"(tmp_dst) : : "eax")']
     if "FPU" in flags:
-        if "FPUNORESTORE" not in flags:  snippet = ['fxrstor (%%\" EXPAND(REG(ax)) \")'] + snippet
+        if "FPUNORESTORE" not in flags:  snippet = ['fxrstor (%%\" VMM_EXPAND(VMM_REG(ax)) \")'] + snippet
         snippet = ['if (cache->_cpu->cr0 & 0xc) EXCEPTION(cache, 0x7, 0)',
-                   'asm volatile("' + ';'.join(snippet)+'; fxsave (%%\" EXPAND(REG(ax)) \");" : "+d"(tmp_src), "+c"(tmp_dst) : "a"(cache->_fpustate))']
+                   'asm volatile("' + ';'.join(snippet)+'; fxsave (%%\" VMM_EXPAND(VMM_REG(ax)) \");" : "+d"(tmp_src), "+c"(tmp_dst) : "a"(cache->_fpustate))']
     if "CPL0" in flags:
         snippet = ["if (cache->cpl0_test()) return"] + snippet
     # parameter handling
@@ -294,10 +294,10 @@ opcodes += [
     ("stc",   ["NO_OS"], ["cache->_cpu->efl |=  1"]),
     ("cld",   ["NO_OS"], ["cache->_cpu->efl &= ~0x400"]),
     ("std",   ["NO_OS"], ["cache->_cpu->efl |=  0x400"]),
-    ("bswap", ["NO_OS", "ASM"], ["mov (%\" EXPAND(REG(cx)) \"), %eax", "bswap %eax", "mov %eax, (%\" EXPAND(REG(cx)) \")"]),
-    ("xchg",  ["ASM", "RMW"],  ["mov (%\" EXPAND(REG(dx)) \"), [EAX]", "[lock] xchg[bwl] [EAX], (%\" EXPAND(REG(cx)) \")", "mov [EAX], (%\" EXPAND(REG(dx)) \")"]),
-    ("cwtl",  ["ASM", "EAX"],  ["mov (%\" EXPAND(REG(cx)) \"), [EAX]", "[data16] cwde", "mov [EAX], (%\" EXPAND(REG(cx)) \")"]),
-    ("cltd",  ["ASM", "EAX", "EDX", "DIRECTION"],   ["mov (%\" EXPAND(REG(dx)) \"), %eax", "[data16] cltd", "mov %\" EXPAND(REG(dx)) \", (%\" EXPAND(REG(cx)) \")"]),
+    ("bswap", ["NO_OS", "ASM"], ["mov (%\" VMM_EXPAND(VMM_REG(cx)) \"), %eax", "bswap %eax", "mov %eax, (%\" VMM_EXPAND(VMM_REG(cx)) \")"]),
+    ("xchg",  ["ASM", "RMW"],  ["mov (%\" VMM_EXPAND(VMM_REG(dx)) \"), [EAX]", "[lock] xchg[bwl] [EAX], (%\" VMM_EXPAND(VMM_REG(cx)) \")", "mov [EAX], (%\" VMM_EXPAND(VMM_REG(dx)) \")"]),
+    ("cwtl",  ["ASM", "EAX"],  ["mov (%\" VMM_EXPAND(VMM_REG(cx)) \"), [EAX]", "[data16] cwde", "mov [EAX], (%\" VMM_EXPAND(VMM_REG(cx)) \")"]),
+    ("cltd",  ["ASM", "EAX", "EDX", "DIRECTION"],   ["mov (%\" VMM_EXPAND(VMM_REG(dx)) \"), %eax", "[data16] cltd", "mov %\" VMM_EXPAND(VMM_REG(dx)) \", (%\" VMM_EXPAND(VMM_REG(cx)) \")"]),
     ("str",   ["NO_OS", "OS1"], ["move<1>(tmp_dst, &cache->_cpu->tr.sel)"]),
     ("sldt",  ["NO_OS", "OS1"], ["move<1>(tmp_dst, &cache->_cpu->ld.sel)"]),
     ("smsw",  ["NO_OS", "OS1"], ["move<1>(tmp_dst, &cache->_cpu->cr0)"]),
@@ -307,26 +307,26 @@ opcodes += [
     ("clflush", ["ASM", "BYTE"], [""]),
     ]
 opcodes += [(x, ["ASM", "EAX", "NO_OS", x in ["aaa", "aas"] and "LOADFLAGS", "SAVEFLAGS"],
-	     ["#ifdef __x86_64__\n\tLogging::panic(\"Unable to execute '" + x + "'\\n\");\n#else\n\tasm volatile(\"mov (%%\" EXPAND(REG(cx)) \"), %%eax;" + x + ";mov %%eax, (%%\" EXPAND(REG(cx)) \")\" : \"+d\"(tmp_src), \"+c\"(tmp_dst) : : \"eax\");\n#endif\n"])
+	     ["#ifdef __x86_64__\n\tLogging::panic(\"Unable to execute '" + x + "'\\n\");\n#else\n\tasm volatile(\"mov (%%\" VMM_EXPAND(VMM_REG(cx)) \"), %%eax;" + x + ";mov %%eax, (%%\" VMM_EXPAND(VMM_REG(cx)) \")\" : \"+d\"(tmp_src), \"+c\"(tmp_dst) : : \"eax\");\n#endif\n"])
 	    for x in ["aaa", "aas", "daa", "das"]]
 opcodes += [(x, ["ASM", x in ["cmp", "test"] and "READONLY",
 	   		x in ["adc", "sbb"] and "LOADFLAGS",
 			x not in ["mov"] and "SAVEFLAGS",
 			x not in ["mov", "cmp",  "test"] and "RMW",
 			],
-	     ["mov[bwl] (%\" EXPAND(REG(dx)) \"), [EAX]", "[lock] %s[bwl] [EAX],(%%\" EXPAND(REG(cx)) \")"%x])
+	     ["mov[bwl] (%\" VMM_EXPAND(VMM_REG(dx)) \"), [EAX]", "[lock] %s[bwl] [EAX],(%%\" VMM_EXPAND(VMM_REG(cx)) \")"%x])
 	    for x in ["mov", "add", "adc", "sub", "sbb", "and", "or", "xor", "cmp", "test"]]
 opcodes += [(x, ["ASM", x not in ["not"] and "SAVEFLAGS", x in ["dec", "inc"] and "LOADFLAGS", "RMW"],
-	     ["[lock] " + x + "[bwl] (%\" EXPAND(REG(cx)) \")"])
+	     ["[lock] " + x + "[bwl] (%\" VMM_EXPAND(VMM_REG(cx)) \")"])
 	    for x in ["inc", "dec", "neg", "not"]]
 opcodes += [(x, ["ASM", "CONST1", x in ["rcr", "rcl"] and "LOADFLAGS", "SAVEFLAGS", "RMW"],
-	     ["xchg %\" EXPAND(REG(dx)) \", %\" EXPAND(REG(cx)) \"","movb (%\" EXPAND(REG(cx)) \"),%cl", "%s[bwl] %%cl, (%%\" EXPAND(REG(dx)) \")"%x]) for x in ["rol", "ror", "rcl", "rcr", "shl", "shr", "sar"]]
-opcodes += [(x, ["ASM", "SAVEFLAGS", "DIRECTION"], ["%s[bwl] (%%\" EXPAND(REG(dx)) \"), [EAX]"%x, "mov [EAX], (%\" EXPAND(REG(cx)) \")"]) for x in ["bsf", "bsr"]]
+	     ["xchg %\" VMM_EXPAND(VMM_REG(dx)) \", %\" VMM_EXPAND(VMM_REG(cx)) \"","movb (%\" VMM_EXPAND(VMM_REG(cx)) \"),%cl", "%s[bwl] %%cl, (%%\" VMM_EXPAND(VMM_REG(dx)) \")"%x]) for x in ["rol", "ror", "rcl", "rcr", "shl", "shr", "sar"]]
+opcodes += [(x, ["ASM", "SAVEFLAGS", "DIRECTION"], ["%s[bwl] (%%\" VMM_EXPAND(VMM_REG(dx)) \"), [EAX]"%x, "mov [EAX], (%\" VMM_EXPAND(VMM_REG(cx)) \")"]) for x in ["bsf", "bsr"]]
 ccflags = map(lambda x: compile_and_disassemble(".byte %#x, 0x00"%x, file, fdict)[2].split()[0][1:], range(0x70, 0x80))
 for i in range(len(ccflags)):
     ccflag = ccflags[i]
-    opcodes += [("set" +ccflag, ["BYTE",   "ASM", "LOADFLAGS"], ["set%s (%%\" EXPAND(REG(cx)) \")"%ccflag])]
-    opcodes += [("cmov"+ccflag, ["NO_OS",  "ASM", "LOADFLAGS",  "OS2"], ["j%s 1f"%(ccflags[i ^ 1]), "mov (%\" EXPAND(REG(dx)) \"), %eax", "mov %eax, (%\" EXPAND(REG(cx)) \")", "1:"])]
+    opcodes += [("set" +ccflag, ["BYTE",   "ASM", "LOADFLAGS"], ["set%s (%%\" VMM_EXPAND(VMM_REG(cx)) \")"%ccflag])]
+    opcodes += [("cmov"+ccflag, ["NO_OS",  "ASM", "LOADFLAGS",  "OS2"], ["j%s 1f"%(ccflags[i ^ 1]), "mov (%\" VMM_EXPAND(VMM_REG(dx)) \"), %eax", "mov %eax, (%\" VMM_EXPAND(VMM_REG(cx)) \")", "1:"])]
     # use call %P0 instead of call %c0; seems to be a gcc-bug that occurs with -mcmodel=large
     # (see http://gcc.gnu.org/bugzilla/show_bug.cgi?id=46477)
     opcodes += [("j"+ccflag,    ["JMP",   "ASM", "LOADFLAGS", "DIRECTION"],
@@ -379,7 +379,7 @@ opcodes += [(x, ["DIRECTION"], [
 	    "asm volatile (\"1: ;"
 	    "%s[bwl] (%%2);"
 	    "xor %%2, %%2;"
-	    "2: ; .section .data.fixup2; \" ASM_WORD_TYPE \" 1b, 2b, 2b-1b; .previous;"
+	    "2: ; .section .data.fixup2; \" VMM_ASM_WORD_TYPE \" 1b, 2b, 2b-1b; .previous;"
 	    "\" : \"+a\"(eax), \"+d\"(edx), \"+c\"(tmp_src))"%x,
 	    "if (tmp_src) DE0(cache)",
 	    "cache->_cpu->eax = eax",
@@ -388,15 +388,15 @@ opcodes += [(x, ["DIRECTION"], [
 opcodes += [(x, ["RMW"], ["unsigned count",
 			    "if ([IMM]) count = cache->_entry->immediate; else count = cache->_cpu->ecx",
 			    "tmp_src = cache->get_reg32((cache->_entry->data[cache->_entry->offset_opcode] >> 3) & 0x7)",
-			    'asm volatile ("xchg %%\" EXPAND(REG(ax)) \", %%\" EXPAND(REG(cx)) \"; mov (%%\" EXPAND(REG(dx)) \"), %%edx; [data16] '+
-			    x+' %%cl, %%\" EXPAND(REG(dx)) \", (%%\" EXPAND(REG(ax)) \"); pushf; pop %%" EXPAND(REG(ax))  : "+a"(count), "+d"(tmp_src), "+c"(tmp_dst))',
+			    'asm volatile ("xchg %%\" VMM_EXPAND(VMM_REG(ax)) \", %%\" VMM_EXPAND(VMM_REG(cx)) \"; mov (%%\" VMM_EXPAND(VMM_REG(dx)) \"), %%edx; [data16] '+
+			    x+' %%cl, %%\" VMM_EXPAND(VMM_REG(dx)) \", (%%\" VMM_EXPAND(VMM_REG(ax)) \"); pushf; pop %%" VMM_EXPAND(VMM_REG(ax))  : "+a"(count), "+d"(tmp_src), "+c"(tmp_dst))',
 			    "cache->_cpu->efl = (cache->_cpu->efl & ~0x8d5) | (count  & 0x8d5)"])
 	    for x in ["shrd", "shld"]]
 opcodes += [("imul", ["DIRECTION"], ["unsigned param, result",
 				 "tmp_dst = cache->get_reg32((cache->_entry->data[cache->_entry->offset_opcode] >> 3) & 0x7)",
 				 "if ([IMM]) param = cache->_entry->immediate; else if ([OP1]) param = cache->_cpu->eax; else move<[os]>(&param, tmp_dst);",
 				 # 'Logging::printf("IMUL %x * %x\\n", param, *reinterpret_cast<unsigned *>(tmp_src))',
-				 'asm volatile ("imul[bwl] (%%\" EXPAND(REG(cx)) \"); pushf; pop %%" EXPAND(REG(cx))  : "+a"(param), "=d"(result), "+c"(tmp_src))',
+				 'asm volatile ("imul[bwl] (%%\" VMM_EXPAND(VMM_REG(cx)) \"); pushf; pop %%" VMM_EXPAND(VMM_REG(cx))  : "+a"(param), "=d"(result), "+c"(tmp_src))',
 				 "cache->_cpu->efl = (cache->_cpu->efl & ~0x8d5) | (reinterpret_cast<unsigned long>(tmp_src)  & 0x8d5)",
 				 "if ([OP1]) move<[os] ? [os] : 1>(&cache->_cpu->eax, &param)",
 				 "if ([OP1] && [os]) move<[os]>(&cache->_cpu->edx, &result)",
@@ -422,17 +422,17 @@ for x in segment_list:
 		("pop %"+x, [], ["unsigned sel", "cache->helper_POP<[os]>(&sel) || cache->set_segment(&cache->_cpu->%s, sel)"%x, x == "ss" and "cache->_cpu->intr_state |= 2" or ""]),
 		("l"+x, ["SKIPMODRM", "MODRM", "MEMONLY"], ["cache->helper_loadsegment<[os]>(&cache->_cpu->%s)"%x])]
 opcodes += [(x, ["FPU", "FPUNORESTORE", "NO_OS"], [x]) for x in ["fninit"]]
-opcodes += [(x, ["FPU", "NO_OS"], [x+" (%%\" EXPAND(REG(cx)) \")"]) for x in ["fnstsw", "fnstcw", "ficom", "ficomp"]]
-opcodes += [(x, ["FPU", "NO_OS", "EAX"], ["fnstsw (%%\" EXPAND(REG(cx)) \")"]) for x in ["fnstsw %ax"]]
+opcodes += [(x, ["FPU", "NO_OS"], [x+" (%%\" VMM_EXPAND(VMM_REG(cx)) \")"]) for x in ["fnstsw", "fnstcw", "ficom", "ficomp"]]
+opcodes += [(x, ["FPU", "NO_OS", "EAX"], ["fnstsw (%%\" VMM_EXPAND(VMM_REG(cx)) \")"]) for x in ["fnstsw %ax"]]
 opcodes += [(".byte 0xdb, 0xe4 ", ["NO_OS", "COMPLETE"], ["/* fnsetpm, on 287 only, noop afterwards */"])]
-opcodes += [(x, [x not in ["bt"] and "RMW" or "READONLY", "SAVEFLAGS", "BITS", "ASM"], ["mov (%\" EXPAND(REG(dx)) \"), %eax",
+opcodes += [(x, [x not in ["bt"] and "RMW" or "READONLY", "SAVEFLAGS", "BITS", "ASM"], ["mov (%\" VMM_EXPAND(VMM_REG(dx)) \"), %eax",
 										       "and  $(8<<[os])-1, %eax",
-											"[lock] "+x+" [EAX],(%\" EXPAND(REG(cx)) \")"]) for x in ["bt", "btc", "bts", "btr"]]
+											"[lock] "+x+" [EAX],(%\" VMM_EXPAND(VMM_REG(cx)) \")"]) for x in ["bt", "btc", "bts", "btr"]]
 opcodes += [("cmpxchg", ["RMW"], ['char res; asm volatile("mov (%2), %2; [lock] cmpxchg [EDX], (%3); setz %1" : "+a"(cache->_cpu->eax), "=d"(res) : "d"(tmp_src), "c"(tmp_dst))',
 				  "if (res) cache->_cpu->efl |= EFL_ZF; else cache->_cpu->efl &= EFL_ZF"])]
 opcodes += [("cmpxchg8b", ["RMW", "NO_OS", "QWORD"], ['char res; asm volatile("[lock] cmpxchg8b (%3); setz %2" : "+a"(cache->_cpu->eax), "+d"(cache->_cpu->edx), "=c"(res) : "D"(tmp_dst), "b"(cache->_cpu->ebx), "c"(cache->_cpu->ecx))',
 				  "if (res) cache->_cpu->efl |= EFL_ZF; else cache->_cpu->efl &= EFL_ZF"])]
-opcodes += [("xadd", ["RMW", "ASM", "SAVEFLAGS"], ['mov (%\" EXPAND(REG(dx)) \"), [EAX]', '[lock] xadd [EAX], (%\" EXPAND(REG(cx)) \")', 'mov [EAX], (%\" EXPAND(REG(dx)) \")'])]
+opcodes += [("xadd", ["RMW", "ASM", "SAVEFLAGS"], ['mov (%\" VMM_EXPAND(VMM_REG(dx)) \"), [EAX]', '[lock] xadd [EAX], (%\" VMM_EXPAND(VMM_REG(cx)) \")', 'mov [EAX], (%\" VMM_EXPAND(VMM_REG(dx)) \")'])]
 
 # unimplemented instructions
 opcodes += [(x, [], []) for x in ["vmcall", "vmlaunch", "vmresume", "vmxoff", "vmptrld", "vmptrst", "vmread", "vmwrite"]] # , "vmxon", "vmclear"

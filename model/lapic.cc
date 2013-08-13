@@ -16,7 +16,7 @@
  * General Public License version 2 for more details.
  */
 
-#ifndef REGBASE
+#ifndef VMM_REGBASE
 #include "model/config.h"
 #include "nul/motherboard.h"
 #include "nul/vcpu.h"
@@ -32,7 +32,7 @@
  */
 class Lapic : public DiscoveryHelper<Lapic>, public StaticReceiver<Lapic>
 {
-#define REGBASE "../model/lapic.cc"
+#define VMM_REGBASE "../model/lapic.cc"
 #include "model/reg.h"
   enum {
     MAX_FREQ   = 200000000,
@@ -791,27 +791,27 @@ PARAM_HANDLER(lapic,
 
 
 #else
-REGSET(Lapic,
-       REG_RW(_ID,            0x02,          0, 0xff000000,)
-       REG_RO(_VERSION,       0x03, 0x01050014)
-       REG_RW(_TPR,           0x08,          0, 0xff,)
-       REG_RW(_LDR,           0x0d,          0, 0xff000000,)
-       REG_RW(_DFR,           0x0e, 0xffffffff, 0xf0000000,)
-       REG_RW(_SVR,           0x0f, 0x000000ff, 0x11ff,     update_irqs();)
-       REG_RW(_ESR,           0x28,          0, 0xffffffff, _ESR = Cpu::xchg(&_esr_shadow, 0U); return !value; )
-       REG_RW(_ICR,           0x30,          0, 0x000ccfff, if (!send_ipi(_ICR, _ICR1)) COUNTER_INC("IPI missed");)
-       REG_RW(_ICR1,          0x31,          0, 0xff000000,)
-       REG_RW(_TIMER,         0x32, 0x00010000, 0x310ff, )
-       REG_RW(_TERM,          0x33, 0x00010000, 0x117ff, )
-       REG_RW(_PERF,          0x34, 0x00010000, 0x117ff, )
-       REG_RW(_LINT0,         0x35, 0x00010000, 0x1b7ff, )
-       REG_RW(_LINT1,         0x36, 0x00010000, 0x1b7ff, )
-       REG_RW(_ERROR,         0x37, 0x00010000, 0x110ff, )
-       REG_RW(_ICT,           0x38,          0, ~0u,
+VMM_REGSET(Lapic,
+       VMM_REG_RW(_ID,            0x02,          0, 0xff000000,)
+       VMM_REG_RO(_VERSION,       0x03, 0x01050014)
+       VMM_REG_RW(_TPR,           0x08,          0, 0xff,)
+       VMM_REG_RW(_LDR,           0x0d,          0, 0xff000000,)
+       VMM_REG_RW(_DFR,           0x0e, 0xffffffff, 0xf0000000,)
+       VMM_REG_RW(_SVR,           0x0f, 0x000000ff, 0x11ff,     update_irqs();)
+       VMM_REG_RW(_ESR,           0x28,          0, 0xffffffff, _ESR = Cpu::xchg(&_esr_shadow, 0U); return !value; )
+       VMM_REG_RW(_ICR,           0x30,          0, 0x000ccfff, if (!send_ipi(_ICR, _ICR1)) COUNTER_INC("IPI missed");)
+       VMM_REG_RW(_ICR1,          0x31,          0, 0xff000000,)
+       VMM_REG_RW(_TIMER,         0x32, 0x00010000, 0x310ff, )
+       VMM_REG_RW(_TERM,          0x33, 0x00010000, 0x117ff, )
+       VMM_REG_RW(_PERF,          0x34, 0x00010000, 0x117ff, )
+       VMM_REG_RW(_LINT0,         0x35, 0x00010000, 0x1b7ff, )
+       VMM_REG_RW(_LINT1,         0x36, 0x00010000, 0x1b7ff, )
+       VMM_REG_RW(_ERROR,         0x37, 0x00010000, 0x110ff, )
+       VMM_REG_RW(_ICT,           0x38,          0, ~0u,
 	      COUNTER_INC("lapic ict");
 	      _timer_start = _mb.clock()->time();
 	      update_timer(_timer_start); )
-       REG_RW(_DCR,           0x3e,          0, 0xb
+       VMM_REG_RW(_DCR,           0x3e,          0, 0xb
 ,
 	      {
 		timevalue now = _mb.clock()->time();

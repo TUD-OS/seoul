@@ -15,44 +15,44 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
  * General Public License version 2 for more details.
  */
-#define DEFINE_REG(NAME, OFFSET, VALUE, MASK) private: unsigned NAME; public: static const unsigned NAME##_offset = OFFSET; static const unsigned NAME##_mask   = MASK; static const unsigned NAME##_reset  = VALUE;
-#define REG_RO(NAME, OFFSET, VALUE) REG(NAME, OFFSET, static const unsigned NAME = VALUE;, value = VALUE; , break; , )
-#define REG_RW(NAME, OFFSET, VALUE, MASK, WRITE_CALLBACK) REG(NAME, OFFSET, DEFINE_REG(NAME, OFFSET, VALUE, MASK) , value = NAME; , if (!MASK) return false; if (strict && value & ~MASK) return false; NAME = (NAME & ~MASK) | (value & MASK); WRITE_CALLBACK; , NAME=VALUE;)
-#define REG_WR(NAME, OFFSET, VALUE, MASK, RW1S, RW1C, WRITE_CALLBACK) REG(NAME, OFFSET, DEFINE_REG(NAME, OFFSET, VALUE, MASK), value = NAME; ,  if (!MASK) return false; unsigned oldvalue = NAME; value = value & ~RW1S | ( value | oldvalue) & RW1S; value = value & ~RW1C | (~value & oldvalue) & RW1C; NAME = (NAME & ~MASK) | (value & MASK); WRITE_CALLBACK; , NAME = VALUE;)
-#define REGSET(NAME, ...) private: __VA_ARGS__
-#define REG(NAME, OFFSET, MEMBER, READ, WRITE, RESET) MEMBER
-#include REGBASE
-#undef  REG
-#undef  REGSET
-#define REGSET(NAME, ...)  bool NAME##_read(unsigned offset, unsigned &value) { switch (offset) { __VA_ARGS__ default: break; } return false; }
-#define REG(NAME, OFFSET, MEMBER, READ, WRITE, RESET) case OFFSET:  { READ }; return true;
-#include REGBASE
-#undef  REG
-#undef  REGSET
-#define REGSET(NAME, ...)  bool NAME##_write(unsigned offset, unsigned value, bool strict=false) { switch (offset) { __VA_ARGS__ default: break; } return 0; }
-#define REG(NAME, OFFSET, MEMBER, READ, WRITE, RESET) case OFFSET:  { WRITE }; return true;
-#include REGBASE
-#undef  REG
-#undef  REGSET
-#define REGSET(NAME, ...)  void NAME##_reset() { __VA_ARGS__ }; private:
-#define REG(NAME, OFFSET, MEMBER, READ, WRITE, RESET) RESET
-#include REGBASE
-#undef  REG
-#undef  REGSET
-#undef  REG_WR
-#undef  REG_RW
-#undef  REG_RO
-#undef  DEFINE_REG
-#undef REGBASE
+#define VMM_DEFINE_REG(NAME, OFFSET, VALUE, MASK) private: unsigned NAME; public: static const unsigned NAME##_offset = OFFSET; static const unsigned NAME##_mask   = MASK; static const unsigned NAME##_reset  = VALUE;
+#define VMM_REG_RO(NAME, OFFSET, VALUE) VMM_REG(NAME, OFFSET, static const unsigned NAME = VALUE;, value = VALUE; , break; , )
+#define VMM_REG_RW(NAME, OFFSET, VALUE, MASK, WRITE_CALLBACK) VMM_REG(NAME, OFFSET, VMM_DEFINE_REG(NAME, OFFSET, VALUE, MASK) , value = NAME; , if (!MASK) return false; if (strict && value & ~MASK) return false; NAME = (NAME & ~MASK) | (value & MASK); WRITE_CALLBACK; , NAME=VALUE;)
+#define VMM_REG_WR(NAME, OFFSET, VALUE, MASK, RW1S, RW1C, WRITE_CALLBACK) VMM_REG(NAME, OFFSET, VMM_DEFINE_REG(NAME, OFFSET, VALUE, MASK), value = NAME; ,  if (!MASK) return false; unsigned oldvalue = NAME; value = value & ~RW1S | ( value | oldvalue) & RW1S; value = value & ~RW1C | (~value & oldvalue) & RW1C; NAME = (NAME & ~MASK) | (value & MASK); WRITE_CALLBACK; , NAME = VALUE;)
+#define VMM_REGSET(NAME, ...) private: __VA_ARGS__
+#define VMM_REG(NAME, OFFSET, MEMBER, READ, WRITE, RESET) MEMBER
+#include VMM_REGBASE
+#undef  VMM_REG
+#undef  VMM_REGSET
+#define VMM_REGSET(NAME, ...)  bool NAME##_read(unsigned offset, unsigned &value) { switch (offset) { __VA_ARGS__ default: break; } return false; }
+#define VMM_REG(NAME, OFFSET, MEMBER, READ, WRITE, RESET) case OFFSET:  { READ }; return true;
+#include VMM_REGBASE
+#undef  VMM_REG
+#undef  VMM_REGSET
+#define VMM_REGSET(NAME, ...)  bool NAME##_write(unsigned offset, unsigned value, bool strict=false) { switch (offset) { __VA_ARGS__ default: break; } return 0; }
+#define VMM_REG(NAME, OFFSET, MEMBER, READ, WRITE, RESET) case OFFSET:  { WRITE }; return true;
+#include VMM_REGBASE
+#undef  VMM_REG
+#undef  VMM_REGSET
+#define VMM_REGSET(NAME, ...)  void NAME##_reset() { __VA_ARGS__ }; private:
+#define VMM_REG(NAME, OFFSET, MEMBER, READ, WRITE, RESET) RESET
+#include VMM_REGBASE
+#undef  VMM_REG
+#undef  VMM_REGSET
+#undef  VMM_REG_WR
+#undef  VMM_REG_RW
+#undef  VMM_REG_RO
+#undef  VMM_DEFINE_REG
+#undef VMM_REGBASE
 
 /**
- * \def REG_RO(NAME, OFFSET, VALUE)
+ * \def VMM_REG_RO(NAME, OFFSET, VALUE)
  *
  * Defines a read-only register.
  */
 
 /**
- * \def REG_RW(NAME, OFFSET, VALUE, MASK, WRITE_CALLBACK)
+ * \def VMM_REG_RW(NAME, OFFSET, VALUE, MASK, WRITE_CALLBACK)
  *
  * Defines a read/write register.
  *
@@ -64,7 +64,7 @@
  */
 
 /**
- * \def REG_WR(NAME, OFFSET, VALUE, MASK, RW1S, RW1C, WRITE_CALLBACK)
+ * \def VMM_REG_WR(NAME, OFFSET, VALUE, MASK, RW1S, RW1C, WRITE_CALLBACK)
  *
  * Defines a read/write register with set/clear bits.
  *
@@ -78,7 +78,7 @@
  */
 
 /**
- * \def REGSET(NAME, ...)
+ * \def VMM_REGSET(NAME, ...)
  *
  * Defines a set of registers.
  */
