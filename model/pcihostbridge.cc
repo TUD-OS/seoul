@@ -28,7 +28,7 @@
  * Missing: LogicalPCI bus
  */
 
-#ifndef REGBASE
+#ifndef VMM_REGBASE
 
 class PciHostBridge : public DiscoveryHelper<PciHostBridge>, public StaticReceiver<PciHostBridge>
 {
@@ -41,7 +41,7 @@ private:
   uintptr_t _membase;
   unsigned _confaddress;
   unsigned char _cf9;
-#define  REGBASE "../model/pcihostbridge.cc"
+#define  VMM_REGBASE "../model/pcihostbridge.cc"
 #include "model/reg.h"
 
   /**
@@ -260,9 +260,9 @@ PARAM_HANDLER(pcihostbridge,
   mb.bus_bios.add  (dev, PciHostBridge::receive_static<MessageBios>);
 }
 #else
-REGSET(PCI,
-       REG_RO(PCI_ID,  0x0, 0x27a08086)
-       REG_RW(PCI_CMD, 0x1, 0x000900106, 0x0106,)
-       REG_RO(PCI_CC,  0x2, 0x06000000)
-       REG_RO(PCI_SS,  0xb, 0x27a08086))
+VMM_REGSET(PCI,
+       VMM_REG_RO(PCI_ID,  0x0, 0x27a08086)
+       VMM_REG_RW(PCI_CMD, 0x1, 0x000900106, 0x0106,)
+       VMM_REG_RO(PCI_CC,  0x2, 0x06000000)
+       VMM_REG_RO(PCI_SS,  0xb, 0x27a08086))
 #endif

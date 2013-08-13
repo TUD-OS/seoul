@@ -16,7 +16,7 @@
  * General Public License version 2 for more details.
  */
 
-#ifndef REGBASE
+#ifndef VMM_REGBASE
 #include "nul/motherboard.h"
 #include "model/sata.h"
 #include "model/pci.h"
@@ -45,7 +45,7 @@ class AhciPort : public FisReceiver
   bool _need_initial_fis;
 
 
-#define  REGBASE "../model/ahcicontroller.cc"
+#define  VMM_REGBASE "../model/ahcicontroller.cc"
 #include "model/reg.h"
 
 public:
@@ -203,14 +203,14 @@ public:
 
 #else
 #ifndef AHCI_CONTROLLER
-REGSET(AhciPort,
-       REG_RW(PxCLB,    0x0, 0, 0xfffffc00,)
-       REG_RO(PxCLBU,   0x4, 0)
-       REG_RW(PxFB,     0x8, 0, 0xffffff00,)
-       REG_RO(PxFBU,    0xc, 0)
-       REG_WR(PxIS,    0x10, 0, 0xdfc000af, 0, 0xdfc000af, COUNTER_INC("IS");)
-       REG_RW(PxIE,    0x14, 0, 0x7dc0007f,)
-       REG_WR(PxCMD,   0x18, 0, 0xf3000011, 0, 0,
+VMM_REGSET(AhciPort,
+       VMM_REG_RW(PxCLB,    0x0, 0, 0xfffffc00,)
+       VMM_REG_RO(PxCLBU,   0x4, 0)
+       VMM_REG_RW(PxFB,     0x8, 0, 0xffffff00,)
+       VMM_REG_RO(PxFBU,    0xc, 0)
+       VMM_REG_WR(PxIS,    0x10, 0, 0xdfc000af, 0, 0xdfc000af, COUNTER_INC("IS");)
+       VMM_REG_RW(PxIE,    0x14, 0, 0x7dc0007f,)
+       VMM_REG_WR(PxCMD,   0x18, 0, 0xf3000011, 0, 0,
 	      // enable FRE
 	      if ( PxCMD & 0x10 && ~oldvalue & 0x10) PxCMD |= 1 << 14;
 	      // disable FRE
@@ -226,10 +226,10 @@ REGSET(AhciPort,
 		  PxCI   = PxCI_reset;
 		}
 	      )
-       REG_RW(PxTFD,   0x20, 0x7f, 0,)
-       REG_RW(PxSIG,   0x24, 0xffffffff, 0,)
-       REG_RW(PxSSTS,  0x28, 0, 0,)
-       REG_RW(PxSCTL,  0x2c, 0, 0x00000fff,
+       VMM_REG_RW(PxTFD,   0x20, 0x7f, 0,)
+       VMM_REG_RW(PxSIG,   0x24, 0xffffffff, 0,)
+       VMM_REG_RW(PxSSTS,  0x28, 0, 0,)
+       VMM_REG_RW(PxSCTL,  0x2c, 0, 0x00000fff,
 	      switch (PxSCTL & 0xf) {
 	      case 1: comreset(); break;
 	      case 2:
@@ -238,34 +238,34 @@ REGSET(AhciPort,
 	      default:
 		break;
 	      })
-       REG_WR(PxSERR,  0x30, 0, 0xffffffff, 0, 0xffffffff, )
-       REG_WR(PxSACT,  0x34, 0, 0xffffffff, 0xffffffff, 0, )
-       REG_WR(PxCI,    0x38, 0, 0xffffffff, 0xffffffff, 0, execute_command(PxCI); )
-       REG_RO(PxSNTF,  0x3c, 0)
-       REG_RO(PxFBS,   0x40, 0));
+       VMM_REG_WR(PxSERR,  0x30, 0, 0xffffffff, 0, 0xffffffff, )
+       VMM_REG_WR(PxSACT,  0x34, 0, 0xffffffff, 0xffffffff, 0, )
+       VMM_REG_WR(PxCI,    0x38, 0, 0xffffffff, 0xffffffff, 0, execute_command(PxCI); )
+       VMM_REG_RO(PxSNTF,  0x3c, 0)
+       VMM_REG_RO(PxFBS,   0x40, 0));
 
 
 #else
 
-REGSET(PCI,
-       REG_RO(PCI_ID,        0x0, 0x275c8086)
-       REG_RW(PCI_CMD_STS,   0x1, 0x100000, 0x0406,)
-       REG_RO(PCI_RID_CC,    0x2, 0x01060102)
-       REG_RW(PCI_ABAR,      0x9, 0, 0xffffe000,)
-       REG_RO(PCI_SS,        0xb, 0x275c8086)
-       REG_RO(PCI_CAP,       0xd, 0x80)
-       REG_RW(PCI_INTR,      0xf, 0x0100, 0xff,)
-       REG_RO(PCI_PID_PC,   0x20, 0x00008801)
-       REG_RO(PCI_PMCS,     0x21, 0x0000)
-       REG_RW(PCI_MSI_CTRL, 0x22, 0x00000005, 0x10000,)
-       REG_RW(PCI_MSI_ADDR, 0x23, 0, 0xffffffff,)
-       REG_RW(PCI_MSI_DATA, 0x24, 0, 0xffffffff,));
+VMM_REGSET(PCI,
+       VMM_REG_RO(PCI_ID,        0x0, 0x275c8086)
+       VMM_REG_RW(PCI_CMD_STS,   0x1, 0x100000, 0x0406,)
+       VMM_REG_RO(PCI_RID_CC,    0x2, 0x01060102)
+       VMM_REG_RW(PCI_ABAR,      0x9, 0, 0xffffe000,)
+       VMM_REG_RO(PCI_SS,        0xb, 0x275c8086)
+       VMM_REG_RO(PCI_CAP,       0xd, 0x80)
+       VMM_REG_RW(PCI_INTR,      0xf, 0x0100, 0xff,)
+       VMM_REG_RO(PCI_PID_PC,   0x20, 0x00008801)
+       VMM_REG_RO(PCI_PMCS,     0x21, 0x0000)
+       VMM_REG_RW(PCI_MSI_CTRL, 0x22, 0x00000005, 0x10000,)
+       VMM_REG_RW(PCI_MSI_ADDR, 0x23, 0, 0xffffffff,)
+       VMM_REG_RW(PCI_MSI_DATA, 0x24, 0, 0xffffffff,));
 
 
 
-REGSET(AhciController,
-       REG_RW(REG_CAP,   0x0, 0x40149f00 | (AhciController::MAX_PORTS - 1), 0,)
-       REG_WR(REG_GHC,   0x4, 0x80000000, 0x3, 0x1, 0,
+VMM_REGSET(AhciController,
+       VMM_REG_RW(REG_CAP,   0x0, 0x40149f00 | (AhciController::MAX_PORTS - 1), 0,)
+       VMM_REG_WR(REG_GHC,   0x4, 0x80000000, 0x3, 0x1, 0,
 	      // reset HBA?
 	      if (REG_GHC & 1) {
 		for (unsigned i=0; i < MAX_PORTS; i++)  _ports[i].comreset();
@@ -273,15 +273,15 @@ REGSET(AhciController,
 		REG_IS  = REG_IS_reset;
 		REG_GHC = REG_GHC_reset;
 	      })
-       REG_WR(REG_IS,    0x8, 0, 0xffffffff, 0x00000000, 0xffffffff, )
-       REG_RW(REG_PI,    0xc, 1, 0,)
-       REG_RO(REG_VS,   0x10, 0x00010200)
-       REG_RO(REG_CAP2, 0x24, 0x0));
+       VMM_REG_WR(REG_IS,    0x8, 0, 0xffffffff, 0x00000000, 0xffffffff, )
+       VMM_REG_RW(REG_PI,    0xc, 1, 0,)
+       VMM_REG_RO(REG_VS,   0x10, 0x00010200)
+       VMM_REG_RO(REG_CAP2, 0x24, 0x0));
 
 #endif
 #endif
 
-#ifndef REGBASE
+#ifndef VMM_REGBASE
 
 /**
  * An AhciController on a PCI card.
@@ -301,7 +301,7 @@ class AhciController : public ParentIrqProvider,
   AhciPort _ports[MAX_PORTS];
   unsigned _bdf;
 #define AHCI_CONTROLLER
-#define  REGBASE "../model/ahcicontroller.cc"
+#define  VMM_REGBASE "../model/ahcicontroller.cc"
 #include "model/reg.h"
 
   bool match_bar(uintptr_t &address) {

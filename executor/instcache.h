@@ -18,15 +18,15 @@
 #pragma once
 
 #ifdef __i386__
-#define REG(X)          e ## X
-#define ASM_WORD_TYPE   ".long"
+#define VMM_REG(X)          e ## X
+#define VMM_ASM_WORD_TYPE   ".long"
 #else
-#define REG(X)          r ## X
-#define ASM_WORD_TYPE   ".quad"
+#define VMM_REG(X)          r ## X
+#define VMM_ASM_WORD_TYPE   ".quad"
 #endif
 
-#define STRING(x)       # x
-#define EXPAND(x)       STRING(x)
+#define VMM_STRING(x)       # x
+#define VMM_EXPAND(x)       VMM_STRING(x)
 
 /**
  * Reverse MTR mapping.
