@@ -311,7 +311,7 @@ private:
     PCI_reset();
     reset_device();
     Logging::printf("Instanciated IDE controller with bdf %#x for disk '%s' with %#Lx sectors\n",
-                    bdf, params.name, params.sectors);
+                    bdf, params.name, (unsigned long long)params.sectors);
   }
 };
 
