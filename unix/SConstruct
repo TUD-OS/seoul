@@ -109,6 +109,7 @@ sources = Glob('*.cc') + [            # Unix frontend
       '../model/vga.cc',
       '../model/rtl8029.cc',
       '../model/ahcicontroller.cc',
+      '../model/idecontroller.cc',
       '../model/satadrive.cc',
       '../executor/vbios_disk.cc',
       '../executor/vbios_keyboard.cc',
