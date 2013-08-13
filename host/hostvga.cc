@@ -433,7 +433,7 @@ public:
   }
 
 
-  static void do_work(void *t) REGPARM(0) NORETURN { reinterpret_cast<HostVga *>(t)->work(); }
+  static void do_work(void *t) VMM_REGPARM(0) NORETURN { reinterpret_cast<HostVga *>(t)->work(); }
 
 
 

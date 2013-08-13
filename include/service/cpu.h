@@ -91,7 +91,7 @@ class Cpu
   static unsigned minshift(unsigned long start, unsigned long size) {
     unsigned basealign  = Cpu::bsf(start | (1ul << (8*sizeof(unsigned long)-1)));
     unsigned shiftalign = Cpu::bsr(size | 1);
-    return MIN(basealign, shiftalign);
+    return VMM_MIN(basealign, shiftalign);
   }
 
   /* Computes the maximum amount of natural alignment we can apply to fault. */

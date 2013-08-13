@@ -422,7 +422,7 @@ struct MessageVesa
 /****************************************************/
 
 class VCpu;
-typedef void (*ServiceThreadFn)(void *) REGPARM(0) NORETURN;
+typedef void (*ServiceThreadFn)(void *) VMM_REGPARM(0) VMM_NORETURN;
 
 /**
  * Request to the host, such as notify irq or request IO region.

@@ -22,49 +22,29 @@
 #error Your platform is not supported.
 #endif
 
-#define REGPARM(x) __attribute__((regparm(x)))
-#define NORETURN   __attribute__((noreturn))
-#define PURE       __attribute__((pure))
-#define COLD       __attribute__((cold))
-#define ALIGNED(x) __attribute__((aligned(x)))
-#define PACKED     __attribute__((packed))
-#define MEMORY_BARRIER __asm__ __volatile__ ("" ::: "memory")
-#define RESTRICT   __restrict__
-#define UNUSED     __attribute__((unused))
+#define VMM_REGPARM(x) __attribute__((regparm(x)))
 
-/* XXX Enable this and knock yourself out... */
-//#define DEPRECATED __attribute__((deprecated))
-#define DEPRECATED
-
-#if __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 4)
-# define WARN_UNUSED __attribute__((warn_unused_result))
-#else
-# define WARN_UNUSED
-#endif
+/* We can use [[ noreturn ]] here, when we all move to C++ 11. */
+#define VMM_NORETURN   __attribute__((noreturn))
+#define VMM_UNUSED     __attribute__((unused))
 
 #ifdef __cplusplus
-# if __GNUC__ < 4 || (__GNUC__ == 4 && __GNUC_MINOR__ < 6)
-#  define nullptr 0
-# endif
-#endif
-
-#ifdef __cplusplus
-# define BEGIN_EXTERN_C extern "C" {
-# define END_EXTERN_C   }
-# define EXTERN_C       extern "C"
+# define VMM_BEGIN_EXTERN_C extern "C" {
+# define VMM_END_EXTERN_C   }
+# define VMM_EXTERN_C       extern "C"
 #else
-# define BEGIN_EXTERN_C
-# define END_EXTERN_C
-# define EXTERN_C
+# define VMM_BEGIN_EXTERN_C
+# define VMM_END_EXTERN_C
+# define VMM_EXTERN_C
 #endif
 
 /* Sadly GCC specific */
 
-#define MAX(a, b) ({ typeof (a) _a = (a); \
+#define VMM_MAX(a, b) ({ typeof (a) _a = (a); \
       typeof (b) _b = (b);		  \
       _a > _b ? _a : _b; })
 
-#define MIN(a, b) ({ typeof (a) _a = (a); \
+#define VMM_MIN(a, b) ({ typeof (a) _a = (a); \
       typeof (b) _b = (b);		  \
       _a > _b ? _b : _a; })
 

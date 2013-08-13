@@ -99,8 +99,8 @@ class Motherboard
     assert(arglen > 0);
 
     PARAM_ITER(param) {
-      size_t prefixlen = MIN(strcspn(current, word_separator()),
-                             strcspn(current, wordparam_separator()));
+      size_t prefixlen = VMM_MIN(strcspn(current, word_separator()),
+				 strcspn(current, wordparam_separator()));
       if (strlen((*param)->name) == prefixlen && !memcmp(current, (*param)->name, prefixlen)) {
         Logging::printf("\t=> %.*s <=\n", (int)arglen, current);
 
@@ -109,8 +109,8 @@ class Motherboard
         const char *start = s;
         unsigned long argv[16];
         for (unsigned j=0; j < 16; j++) {
-          size_t alen = MIN(strcspn(s, param_separator()),
-                            strcspn(s, word_separator()));
+          size_t alen = VMM_MIN(strcspn(s, param_separator()),
+				strcspn(s, word_separator()));
           if (alen)
             argv[j] = strtoul(s, 0, 0);
           else
@@ -130,7 +130,7 @@ class Motherboard
    */
   void dump_counters(bool full = false)
   {
-    static timevalue orig_time UNUSED;
+    static timevalue orig_time VMM_UNUSED;
     timevalue t = _clock->clock(1000);
     COUNTER_SET("Time", t - orig_time);
     orig_time = t;
