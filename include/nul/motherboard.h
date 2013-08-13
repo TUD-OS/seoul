@@ -101,7 +101,8 @@ class Motherboard
     PARAM_ITER(param) {
       size_t prefixlen = VMM_MIN(strcspn(current, word_separator()),
 				 strcspn(current, wordparam_separator()));
-      if (strlen((*param)->name) == prefixlen && !memcmp(current, (*param)->name, prefixlen)) {
+      if (strlen(PARAM_DEREF(param).name) == prefixlen &&
+              !memcmp(current, PARAM_DEREF(param).name, prefixlen)) {
         Logging::printf("\t=> %.*s <=\n", (int)arglen, current);
 
         const char *s = current + prefixlen;
@@ -118,7 +119,7 @@ class Motherboard
           s+= alen;
           if (s[0] && strchr(param_separator(), s[0])) s++;
         }
-        (*param)->func(*this, argv, start, s - start);
+        PARAM_DEREF(param).func(*this, argv, start, s - start);
         return;
       }
     }

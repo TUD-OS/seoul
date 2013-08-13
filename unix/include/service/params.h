@@ -56,4 +56,7 @@ class Parameter {
 #define PARAM_ITER(p)                                               \
   for (auto p = Parameter::all_parameters().begin(); p != Parameter::all_parameters().end(); ++p)
 
+#define PARAM_DEREF(p)                                              \
+  (*(*(p)))
+
 // EOF

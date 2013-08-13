@@ -15,7 +15,7 @@
  * General Public License version 2 for more details.
  */
 
-#ifndef REGBASE
+#ifndef VMM_REGBASE
 #include "nul/motherboard.h"
 #include "model/pci.h"
 #include "host/dma.h"
@@ -59,7 +59,7 @@ private:
   unsigned long      _baddr;
   unsigned           _bufferoffset;
 
-#define  REGBASE "../model/idecontroller.cc"
+#define  VMM_REGBASE "../model/idecontroller.cc"
 #include "model/reg.h"
 
 
@@ -311,7 +311,7 @@ private:
     PCI_reset();
     reset_device();
     Logging::printf("Instanciated IDE controller with bdf %#x for disk '%s' with %#Lx sectors\n",
-                    bdf, params.name, params.sectors);
+                    bdf, params.name, (unsigned long long)params.sectors);
   }
 };
 
@@ -344,13 +344,13 @@ PARAM_HANDLER(ide,
 }
 #else
 
-REGSET(PCI,
-       REG_RO(PCI_ID,        0x0, 0x275c8086)
-       REG_RW(PCI_CMD_STS,   0x1, 0x100000, 0x0401,)
-       REG_RO(PCI_RID_CC,    0x2, 0x01010102)
-       REG_RW(PCI_BAR0,      0x4, 1, 0x0000fff8,)
-       REG_RW(PCI_BAR1,      0x5, 1, 0x0000fffc,)
-       REG_RO(PCI_SS,        0xb, 0x275c8086)
-       REG_RO(PCI_CAP,       0xd, 0x00)
-       REG_RW(PCI_INTR,      0xf, 0x0100, 0xff,));
+VMM_REGSET(PCI,
+       VMM_REG_RO(PCI_ID,        0x0, 0x275c8086)
+       VMM_REG_RW(PCI_CMD_STS,   0x1, 0x100000, 0x0401,)
+       VMM_REG_RO(PCI_RID_CC,    0x2, 0x01010102)
+       VMM_REG_RW(PCI_BAR0,      0x4, 1, 0x0000fff8,)
+       VMM_REG_RW(PCI_BAR1,      0x5, 1, 0x0000fffc,)
+       VMM_REG_RO(PCI_SS,        0xb, 0x275c8086)
+       VMM_REG_RO(PCI_CAP,       0xd, 0x00)
+       VMM_REG_RW(PCI_INTR,      0xf, 0x0100, 0xff,));
 #endif

@@ -162,7 +162,7 @@ class Vga : public StaticReceiver<Vga>, public BiosCommon
       case 0x4f01: // get modeinfo
 	{
 	  ConsoleModeInfo info;
-	  if (get_vesa_mode(cpu->ecx & 0x0fff, &info) != 0ul)
+	  if (get_vesa_mode(cpu->ecx & 0x0fff, &info) != ~0u)
 	    {
 	      info.phys_base = _framebuffer_phys;
 	      copy_out(cpu->es.base + cpu->di, &info, sizeof(info));
