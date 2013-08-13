@@ -3,6 +3,8 @@
  * Copyright (C) 2007-2009, Bernhard Kauer <bk@vmmon.org>
  * Economic rights: Technische Universitaet Dresden (Germany)
  *
+ * Copyright (C) 2013 Markus Partheymueller, Intel Corporation.
+ *
  * This file is part of Vancouver.
  *
  * Vancouver is free software: you can redistribute it and/or modify
@@ -40,9 +42,13 @@ class Vancouver : public StaticReceiver<Vancouver> {
 public:
     explicit Vancouver(const char **args, size_t count, size_t console, const nre::String &constitle,
                        size_t fbsize)
-        : _clock(nre::Hip::get().freq_tsc * 1000), _mb(&_clock, nullptr), _timeouts(_mb),
+        : _clock(nre::Hip::get().freq_tsc * 1000), _mb(&_clock, nullptr),
           _conssess("console", console, constitle), _console(this, fbsize), _netsess(),
           _vmmng(), _vcpus(), _stdevs() {
+        _timeouts = new Timeouts *[nre::CPU::count()];
+        for (cpu_t i=0; i<nre::CPU::count(); i++)
+          _timeouts[i] = new Timeouts(_mb, i);
+
         // vmmanager is optional
         try {
             _vmmng = new nre::VMManagerSession("vmmanager");
@@ -81,8 +87,8 @@ public:
     nre::ConsoleSession &console() {
         return _conssess;
     }
-    Timeouts &timeouts() {
-        return _timeouts;
+    Timeouts *timeouts(cpu_t cpu) {
+        return _timeouts[cpu];
     }
     uint64_t generate_mac() {
         static int macs = 0;
@@ -112,7 +118,7 @@ private:
 
     Clock _clock;
     Motherboard _mb;
-    Timeouts _timeouts;
+    Timeouts **_timeouts;
     nre::ConsoleSession _conssess;
     ConsoleBackend _console;
     nre::NetworkSession *_netsess;
