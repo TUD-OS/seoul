@@ -70,4 +70,3 @@ prog = senv.NREProgram(
     fixedaddr = True
 )
 senv.Depends(prog, senv['LIBPATH'] + '/libseoul.a')
-senv.Depends(prog, 'nre/linker_' + senv['ARCH'] + '.ld')
