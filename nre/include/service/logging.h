@@ -23,7 +23,7 @@
 
 class Logging {
 public:
-    static void panic(const char *format, ...) NORETURN __attribute__ ((format(printf, 1, 2)));
+    static void panic(const char *format, ...) VMM_NORETURN __attribute__ ((format(printf, 1, 2)));
     static void printf(const char *format, ...) __attribute__ ((format(printf, 1, 2)));
     static void vprintf(const char *format, va_list &ap);
 };
