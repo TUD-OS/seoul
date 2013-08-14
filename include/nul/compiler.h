@@ -40,12 +40,12 @@
 
 /* Sadly GCC specific */
 
-#define VMM_MAX(a, b) ({ typeof (a) _a = (a); \
-      typeof (b) _b = (b);		  \
+#define VMM_MAX(a, b) ({ decltype (a) _a = (a); \
+      decltype (b) _b = (b);		  \
       _a > _b ? _a : _b; })
 
-#define VMM_MIN(a, b) ({ typeof (a) _a = (a); \
-      typeof (b) _b = (b);		  \
+#define VMM_MIN(a, b) ({ decltype (a) _a = (a); \
+      decltype (b) _b = (b);		  \
       _a > _b ? _b : _a; })
 
 /* EOF */
