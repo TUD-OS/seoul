@@ -61,7 +61,7 @@ struct Elf
    * pointed by module to the memory at phys_mem.
    */
   static unsigned  decode_elf(char *module, size_t modsize, char *phys_mem, uintptr_t &rip,
-                              uintptr_t &maxptr, size_t mem_size, size_t mem_offset,
+                              size_t &maxptr, size_t mem_size, size_t mem_offset,
                               unsigned long long magic)
   {
     unsigned res;
