@@ -44,7 +44,7 @@ extern Parameter __param_table_start, __param_table_end;
     char __parameter_##NAME##_name[] asm (                              \
         "__parameter_" #NAME "_name"                                    \
     ) = #NAME;                                                          \
-    asm volatile (                                                      \
+    asm (                                                               \
         ".section .param;"                                              \
         ASM_WORD_TYPE" __parameter_" #NAME "_function, "                \
         "__parameter_" #NAME "_name; "                                  \

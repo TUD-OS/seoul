@@ -594,8 +594,8 @@ struct MessageDiscovery
 /* DISK messages                                    */
 /****************************************************/
 
-class DmaDescriptor;
-class DiskParameter;
+struct DmaDescriptor;
+struct DiskParameter;
 
 /**
  * Request/read from the disk.

@@ -167,7 +167,7 @@ PARAM_HANDLER(quirk_hpet_ich,
       "quirk_hpet_ich - force enable the HPET on an ICH chipset.",
       "Please note that this does not check whether this is done on the right chipset - use it on your own risk!")
 {
-  HostPci pci(mb.bus_hwpcicfg, mb.bus_hostop);
+  HostPci pci(mb.bus_hwpcicfg);
   unsigned address = pci.conf_read(0xf8, 0x3c);
 
   if (!address) return;

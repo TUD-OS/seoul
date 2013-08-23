@@ -115,7 +115,7 @@ PARAM_HANDLER(hostserialpci,
 	      "See the LCR encoding of the 16550. The default is lcr=3, which means 8N1.",
 	      "Received characters are sent to bus_serial with hostdevnr device id and characters send to bus_serial with hostdevnr+1 device id are transmitted.")
 {
-  HostPci pci(mb.bus_hwpcicfg, mb.bus_hostop);
+  HostPci pci(mb.bus_hwpcicfg);
 
   for (unsigned bdf, num = 0; bdf = pci.search_device(0x7, 0x0, num++);) {
     if (~argv[1] & (1UL << num))
