@@ -225,7 +225,7 @@ PARAM_HANDLER(hostne2k,
               "hostne2k - provide ne2k-pci drivers.",
               "Example: hostne2k.")
 {
-  HostPci pci(mb.bus_hwpcicfg, mb.bus_hostop);
+  HostPci pci(mb.bus_hwpcicfg);
   for (unsigned bdf, num = 0; bdf = pci.search_device(0x2, 0x0, num++);)
     if (pci.conf_read(bdf, 0) == 0x802910ec)
       {

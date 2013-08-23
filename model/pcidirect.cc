@@ -398,7 +398,7 @@ private:
 
   DirectPciDevice(Motherboard &mb, unsigned hbdf, unsigned guestbdf, bool assign,
 		  bool use_irqs=true, unsigned parent_bdf = 0, unsigned vf_no = 0, unsigned map_mode = MAP_MODE_SAFE)
-    : HostVfPci(mb.bus_hwpcicfg, mb.bus_hostop), _mb(mb), _hostbdf(hbdf),
+    : HostVfPci(mb.bus_hwpcicfg), _mb(mb), _hostbdf(hbdf),
       _msix_table(0), _msix_host_table(0), _bar_count(count_bars(_hostbdf)),
       _map_mode(map_mode)
   {
@@ -479,7 +479,7 @@ PARAM_HANDLER(dpci,
 	      "If unsafe_map is 2, BARs smaller than page size are mapped to the guest (SECURITY RISK!)."
 )
 {
-  HostPci  pci(mb.bus_hwpcicfg, mb.bus_hostop);
+  HostPci  pci(mb.bus_hwpcicfg);
   unsigned hostbdf  = pci.search_device(argv[0], argv[1], argv[2]);
   Logging::printf("search_device(%lx,%lx,%lx) bdf %x \n", argv[0], argv[1], argv[2], hostbdf);
   check0(!hostbdf, "dpci device not found");
@@ -493,7 +493,7 @@ PARAM_HANDLER(vfpci,
 	      "vfpci:parent_id,parent_no,vf_no,guest_bdf - directly assign a given virtual function to the guest.",
 	      "If no guest_bdf is given, a free one is used.")
 {
-  HostVfPci pci(mb.bus_hwpcicfg, mb.bus_hostop);
+  HostVfPci pci(mb.bus_hwpcicfg);
   unsigned vf_no      = argv[2];
 
   // Find parent BDF
