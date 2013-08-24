@@ -238,7 +238,7 @@ PARAM_HANDLER(hostide,
 	      "Example: Use 'hostide:1' to have a driver for the first IDE controller.",
 	      "The mask allows to ignore certain controllers. The default is to use all controllers.")
 {
-  HostPci pci(mb.bus_hwpcicfg, mb.bus_hostop);
+  HostPci pci(mb.bus_hwpcicfg);
   for (unsigned bdf, num = 0; bdf = pci.search_device(0x1, 0x1, num++);)
     {
       if (~argv[0] & (1UL << num) || (~pci.conf_read(bdf, 1) & 1))

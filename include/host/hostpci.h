@@ -26,7 +26,6 @@
 class HostPci
 {
   DBus<MessageHwPciConfig> &_bus_pcicfg;
-  DBus<MessageHostOp> 	   &_bus_hostop;
 
  public:
 
@@ -314,5 +313,5 @@ class HostPci
     return size;
   }
 
- HostPci(DBus<MessageHwPciConfig> &bus_pcicfg, DBus<MessageHostOp> &bus_hostop) : _bus_pcicfg(bus_pcicfg), _bus_hostop(bus_hostop) {};
+ HostPci(DBus<MessageHwPciConfig> &bus_pcicfg) : _bus_pcicfg(bus_pcicfg) {};
 };
