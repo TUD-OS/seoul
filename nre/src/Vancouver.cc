@@ -61,6 +61,8 @@ PARAM_HANDLER(m, "m - specify the amount of memory for the guest in MiB") {
     guest_mem = new DataSpace(guest_size, DataSpaceDesc::ANONYMOUS,
                               DataSpaceDesc::RWX | DataSpaceDesc::BIGPAGES, 0, 0,
                               nre::Math::next_pow2_shift(ExecEnv::BIG_PAGE_SIZE) - ExecEnv::PAGE_SHIFT);
+    Serial::get() << "Allocated " << (guest_size / (1024 * 1024)) << " MiB guest memory @ "
+            << fmt(guest_mem->virt(), "p") << "\n";
 }
 PARAM_HANDLER(vcpus, " vcpus - instantiate the vcpus defined with 'ncpu'") {
     const char *vcpu_params[] = {
@@ -199,8 +201,8 @@ bool Vancouver::receive(MessageHostOp &msg) {
         break;
 
         case MessageHostOp::OP_GET_MAC:
-            assert(false);
-            // TODO res = !Sigma0Base::hostop(msg);
+            msg.mac = generate_mac();
+            res = true;
             break;
 
         case MessageHostOp::OP_ATTACH_MSI:
@@ -380,6 +382,45 @@ bool Vancouver::receive(MessageDisk &msg) {
     return false;
 }
 
+bool Vancouver::receive(MessageNetwork &msg) {
+    if(!_netsess)
+        return false;
+    switch(msg.type) {
+        case MessageNetwork::PACKET: {
+            // ignore our own packets
+            uintptr_t addr = reinterpret_cast<uintptr_t>(msg.buffer);
+            if(addr >= _netsess->inbuf().virt() &&
+                    addr + msg.len <= _netsess->inbuf().virt() + _netsess->inbuf().size())
+                return false;
+            return _netsess->send(msg.buffer, msg.len);
+        }
+        case MessageNetwork::QUERY_MAC: {
+            Network::NIC info = _netsess->get_info();
+            msg.mac = info.mac.raw();
+            return true;
+        }
+        default:
+            return false;
+    }
+}
+
+void Vancouver::network_thread(void*) {
+    Vancouver *vc = Thread::current()->get_tls<Vancouver*>(Thread::TLS_PARAM);
+    while(1) {
+        unsigned char *packet;
+        size_t len = vc->_netsess->consumer().get(packet);
+        if(!len)
+            break;
+
+        {
+            ScopedLock<UserSm> guard(&globalsm);
+            MessageNetwork msg(packet, len, 0);
+            vc->_mb.bus_network.send(msg);
+        }
+        vc->_netsess->consumer().next();
+    }
+}
+
 void Vancouver::keyboard_thread(void*) {
     Vancouver *vc = Thread::current()->get_tls<Vancouver*>(Thread::TLS_PARAM);
     while(1) {
@@ -420,7 +461,7 @@ void Vancouver::vmmng_thread(void*) {
     Consumer<VMManager::Packet> &cons = vc->_vmmng->consumer();
     while(1) {
         VMManager::Packet *pk = cons.get();
-        switch(pk->cmd) {
+        switch(pk->event) {
             case VMManager::RESET:
                 vc->reset();
                 break;
@@ -439,7 +480,7 @@ void Vancouver::create_devices(const char **args, size_t count) {
     _mb.bus_disk.add(this, receive_static<MessageDisk> );
     _mb.bus_timer.add(this, receive_static<MessageTimer> );
     _mb.bus_time.add(this, receive_static<MessageTime> );
-    // TODO _mb.bus_network.add(this,receive_static<MessageNetwork>);
+    _mb.bus_network.add(this,receive_static<MessageNetwork>);
     _mb.bus_hwpcicfg.add(this, receive_static<MessageHwPciConfig> );
     _mb.bus_acpi.add(this, receive_static<MessageAcpi> );
     _mb.bus_legacy.add(this, receive_static<MessageLegacy> );

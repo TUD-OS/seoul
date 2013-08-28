@@ -23,6 +23,7 @@
 #include <service/endian.h>
 
 #include <service/hexdump.h>
+#include <emmintrin.h>
 
 enum {
   ETHERNET_ADDR_MASK = 0xFFFFFFFFFFFFULL,
@@ -254,7 +255,7 @@ public:
 
   // Move data and update TCP/IP checksum.
   static void
-  move(uint8 * dst, uint8 const * src, unsigned size, uint32 &state, bool &odd)
+  move(uint8 * dst, uint8 const * src, size_t size, uint32 &state, bool &odd)
   {
     // Logging::printf("move(%p, %p, %u, %08x, %u)\n", dst, src, size, state, odd);
     // hexdump(src, size);

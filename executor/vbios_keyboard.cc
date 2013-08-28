@@ -28,7 +28,6 @@
 class VirtualBiosKeyboard : public StaticReceiver<VirtualBiosKeyboard>, public BiosCommon
 {
   Motherboard *_hostmb;
-  unsigned    _lastkey;
 
   /**
    * Converts our internal keycode format into the BIOS one.
@@ -268,7 +267,7 @@ public:
   }
 
 
-  VirtualBiosKeyboard(Motherboard &mb) : BiosCommon(mb), _lastkey() {
+  VirtualBiosKeyboard(Motherboard &mb) : BiosCommon(mb) {
 
     // create hostmb and hostkeyb
     _hostmb = new Motherboard(mb.clock(), mb.hip());

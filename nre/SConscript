@@ -1,6 +1,7 @@
 # -*- Mode: Python -*-
 
 import os
+import re
 Import('env')
 
 myenv = env.Clone()
@@ -28,22 +29,25 @@ myenv.Append(CFLAGS = ' -Wno-unused-parameter -Wno-parentheses -fno-strict-alias
 # somehow we have to compile the instructions.inc with at least -O1. otherwise gcc complains that
 # an asm constraint is impossible. strange :/
 btype = os.environ.get('NRE_BUILD')
+halienv = myenv.Clone()
+# since the inline-assembly of the instruction-emulator produces quite a few problems with clang,
+# we always use gcc to compile it.
+halienv.Replace(CXX = myenv['CROSS'] + '-g++')
+halienv.Replace(CXXFLAGS = re.sub(r'-target \S+', '', myenv['CXXFLAGS']))
 if btype == 'debug':
-    halienv = myenv.Clone()
     halienv.Append(CXXFLAGS = ' -O1 -fno-inline')
     halifax = halienv.Object(
         '../executor/halifax.cc', CPPPATH = [myenv['CPPPATH'], '../include', 'include', '../executor']
     )
 else:
-    halifax = myenv.Object(
+    halifax = halienv.Object(
         '../executor/halifax.cc', CPPPATH = [myenv['CPPPATH'], '../include', 'include', '../executor']
     )
 myenv.Depends(halifax, '../executor/instructions.inc')
 
 files = [f for f in Glob('../*/*.cc') if
          'executor/halifax.cc' not in str(f) and
-         'unix/' not in str(f) and 'host/' not in str(f) and
-         'model/intel82576vf.cc' not in str(f)]
+         'unix/' not in str(f) and 'host/' not in str(f)]
 files += ['../host/hostkeyboard.cc', '../host/hostio.cc']
 
 lib = myenv.StaticLibrary(

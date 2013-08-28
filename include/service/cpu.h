@@ -47,7 +47,7 @@ class Cpu
 
   template <typename T>
   static T xchg(volatile T *x, T y) {
-    asm volatile ("xchg%z1 %1, %0": "+m"(*x), "+r"(y) :: "memory");
+    asm volatile ("xchg %1, %0": "+m"(*x), "+r"(y) :: "memory");
     return y;
   }
 
@@ -131,7 +131,7 @@ class Cpu
     if (operand_size == 0) *reinterpret_cast<unsigned char *>(tmp_dst) = *reinterpret_cast<unsigned char *>(tmp_src);
     if (operand_size == 1) *reinterpret_cast<unsigned short *>(tmp_dst) = *reinterpret_cast<unsigned short *>(tmp_src);
     if (operand_size == 2) *reinterpret_cast<unsigned int *>(tmp_dst) = *reinterpret_cast<unsigned int *>(tmp_src);
-    //MEMORY_BARRIER;
+    //VMM_MEMORY_BARRIER;
   }
 
   /**

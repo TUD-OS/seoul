@@ -455,7 +455,7 @@ PARAM_HANDLER(hostahci,
 	      "Example: Use 'hostahci:5' to have a driver for the first and third AHCI controller.",
 	      "The mask allows to ignore certain controllers. The default is to use all controllers.")
 {
-  HostPci pci(mb.bus_hwpcicfg, mb.bus_hostop);
+  HostPci pci(mb.bus_hwpcicfg);
 
   for (unsigned bdf, num = 0; bdf = pci.search_device(0x1, 0x6, num++);) {
     if (~argv[0] & (1UL << num))

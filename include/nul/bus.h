@@ -55,7 +55,7 @@ class DBus
   /**
    * To avoid bugs we disallow the copy constuctor.
    */
-  DBus(const DBus<M> &bus) { Logging::panic("%s copy constructor called", __func__); }
+  DBus(const DBus<M> &) { Logging::panic("%s copy constructor called", __func__); }
 
   void set_size(unsigned new_size)
   {

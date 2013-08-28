@@ -442,7 +442,7 @@ public:
 
           //msg(INFO, "TX[%02x] %016llx TDT %04x TDH %04x\n", tail, _tx_ring[tail].hi, _hwreg[TDT], _hwreg[TDH]);
 
-          MEMORY_BARRIER;
+          VMM_MEMORY_BARRIER;
           _hwreg[TDT] = (tail+1) % desc_ring_len;
         }
 
@@ -587,7 +587,7 @@ PARAM_HANDLER(host82573,
               "host82573:instance=0,vnet - provide driver for Intel 82573L Ethernet controller.",
               "Example: 'host82573")
 {
-  HostPci pci(mb.bus_hwpcicfg, mb.bus_hostop);
+  HostPci pci(mb.bus_hwpcicfg);
   unsigned found = 0;
   unsigned instance = (~argv[0] == 0) ? 0 : argv[0];
 
