@@ -23,6 +23,7 @@
 #include <service/endian.h>
 
 #include <service/hexdump.h>
+#include <emmintrin.h>
 
 enum {
   ETHERNET_ADDR_MASK = 0xFFFFFFFFFFFFULL,
