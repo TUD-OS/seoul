@@ -61,6 +61,8 @@ PARAM_HANDLER(m, "m - specify the amount of memory for the guest in MiB") {
     guest_mem = new DataSpace(guest_size, DataSpaceDesc::ANONYMOUS,
                               DataSpaceDesc::RWX | DataSpaceDesc::BIGPAGES, 0, 0,
                               nre::Math::next_pow2_shift(ExecEnv::BIG_PAGE_SIZE) - ExecEnv::PAGE_SHIFT);
+    Serial::get() << "Allocated " << (guest_size / (1024 * 1024)) << " MiB guest memory @ "
+            << fmt(guest_mem->virt(), "p") << "\n";
 }
 PARAM_HANDLER(vcpus, " vcpus - instantiate the vcpus defined with 'ncpu'") {
     const char *vcpu_params[] = {
