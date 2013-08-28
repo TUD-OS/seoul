@@ -38,7 +38,7 @@
 # define VMM_EXTERN_C
 #endif
 
-/* Sadly GCC specific */
+#define VMM_MEMORY_BARRIER  asm volatile ("" : : : "memory")
 
 #define VMM_MAX(a, b) ({ decltype (a) _a = (a); \
       decltype (b) _b = (b);		  \
