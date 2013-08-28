@@ -442,7 +442,7 @@ public:
 
           //msg(INFO, "TX[%02x] %016llx TDT %04x TDH %04x\n", tail, _tx_ring[tail].hi, _hwreg[TDT], _hwreg[TDH]);
 
-          MEMORY_BARRIER;
+          VMM_MEMORY_BARRIER;
           _hwreg[TDT] = (tail+1) % desc_ring_len;
         }
 
