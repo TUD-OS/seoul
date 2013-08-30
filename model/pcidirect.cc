@@ -342,20 +342,19 @@ private:
       msg.count      = _barinfo[i].size >> 12;
       msg.ptr        = _barinfo[i].ptr;
 
-      if (msg.count == 0 and _map_mode == MAP_MODE_SAFE) {
-	Logging::printf(" Could not map BAR %u. %lx is smaller than page size.\n",
-			i, _barinfo[i].size);
-	return false;
-      } else {
-	assert(_map_mode == MAP_MODE_UNSAFE);
+      // Rounding up BAR size to page size in unsafe mode, because
+      // the user wants to shoot himself in the foot.
+      msg.count = (_barinfo[i].size + (_map_mode == MAP_MODE_UNSAFE ? 0xFFF : 0)) >> 12;
 
-	for (unsigned j = 0; j < 5; j++)
+      // Check whether something bad actually happened and warn the
+      // user.
+      if (msg.count != _barinfo[i].size >> 12)
+	if (_map_mode == MAP_MODE_UNSAFE)
 	  Logging::printf(" *** UNSAFE MAPPING OF BAR%u: POTENTIAL SECURTIY RISK ***\n", i);
+	else
+	  Logging::printf(" *** INCOMPLETE MAPPING OF BAR%u: PERFORMANCE PROBLEM ***\n", i);
 
-	// Rounding up BAR size to page size, because the user wants
-	// to shoot himself in the foot.
-	msg.count = 1;
-      }
+      if (msg.count == 0) return false;
 
       unsigned msix_size = (16*_irq_count + 0xfff) & ~0xffful;
       unsigned msix_offset = _cfgspace[1 + _msix_cap] & ~0x7;
