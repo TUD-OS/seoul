@@ -47,8 +47,7 @@ class Cpu
 
   template <typename T>
   static T xchg(volatile T *x, T y) {
-    asm volatile ("xchg%z1 %1, %0": "+m"(*x), "+r"(y) :: "memory");
-    return y;
+    return __sync_lock_test_and_set(x, y);
   }
 
   static  unsigned cmpxchg4b(unsigned *var, unsigned oldvalue, unsigned newvalue) {
