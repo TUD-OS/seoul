@@ -31,7 +31,7 @@ public:
         char buffer[32];
         nre::OStringStream os(buffer, sizeof(buffer));
         os << "vmm-storage-" << no;
-        nre::GlobalThread *gt = nre::GlobalThread::create(
+        nre::Reference<nre::GlobalThread> gt = nre::GlobalThread::create(
             thread, nre::CPU::current().log_id(), buffer);
         gt->set_tls<StorageDevice*>(nre::Thread::TLS_PARAM, this);
         gt->start();

@@ -98,7 +98,7 @@ private:
     PORTAL static void svm_startup(capsel_t pid);
     PORTAL static void svm_recall(capsel_t pid);
 
-    nre::LocalThread *_ec;
+    nre::Reference<nre::LocalThread> _ec;
     capsel_t _caps;
     nre::Sm _sm;
     nre::VCpu _vcpu;

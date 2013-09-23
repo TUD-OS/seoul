@@ -36,7 +36,7 @@ class Timeouts {
 public:
     Timeouts(Motherboard &mb)
         : _mb(mb), _sm(), _timeouts(), _timer("timer"), _last_to(NO_TIMEOUT) {
-        nre::GlobalThread *gt = nre::GlobalThread::create(
+        nre::Reference<nre::GlobalThread> gt = nre::GlobalThread::create(
             timer_thread, nre::CPU::current().log_id(), "vmm-timeouts");
         gt->set_tls<Timeouts*>(nre::Thread::TLS_PARAM, this);
         gt->start();

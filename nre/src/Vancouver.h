@@ -46,7 +46,7 @@ public:
         // vmmanager is optional
         try {
             _vmmng = new nre::VMManagerSession("vmmanager");
-            nre::GlobalThread *vmmng = nre::GlobalThread::create(
+            nre::Reference<nre::GlobalThread> vmmng = nre::GlobalThread::create(
                 vmmng_thread, nre::CPU::current().log_id(), "vmm-vmmng");
             vmmng->set_tls<Vancouver*>(nre::Thread::TLS_PARAM, this);
             vmmng->start();
@@ -60,7 +60,7 @@ public:
             // TODO let the user customize the netsess
             _netsess = new nre::NetworkSession("network", 0);
 
-            nre::GlobalThread *network = nre::GlobalThread::create(
+            nre::Reference<nre::GlobalThread> network = nre::GlobalThread::create(
                 network_thread, nre::CPU::current().log_id(), "vmm-network");
             network->set_tls<Vancouver*>(nre::Thread::TLS_PARAM, this);
             network->start();
@@ -72,7 +72,7 @@ public:
         create_devices(args, count);
         create_vcpus();
 
-        nre::GlobalThread *input = nre::GlobalThread::create(
+        nre::Reference<nre::GlobalThread> input = nre::GlobalThread::create(
             keyboard_thread, nre::CPU::current().log_id(), "vmm-input");
         input->set_tls<Vancouver*>(nre::Thread::TLS_PARAM, this);
         input->start();
