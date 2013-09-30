@@ -18,6 +18,7 @@
 #include <kobj/Sm.h>
 #include <kobj/Ports.h>
 #include <services/Reboot.h>
+#include <services/Keyboard.h>
 #include <stream/IStringStream.h>
 #include <stream/VGAStream.h>
 #include <util/TimeoutList.h>
