@@ -359,7 +359,7 @@ private:
       unsigned msix_size = (16*_irq_count + 0xfff) & ~0xffful;
       unsigned msix_offset = _cfgspace[1 + _msix_cap] & ~0x7;
       if (i == _msix_bar) {
-	unsigned long offset = (_cfgspace[BAR0 + i] & BAR_MEM_MASK) - (msg.page << 12);
+	unsigned long offset = (msg.page << 12) - (_cfgspace[BAR0 + i] & BAR_MEM_MASK);
 	if (in_range(offset, msix_offset, msix_size)) return false;
 	if (offset < msix_offset)
 	  msg.count = msix_offset >> 12;
