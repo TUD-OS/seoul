@@ -276,6 +276,31 @@ struct  Vcpu_info {
 
 static std::vector<Vcpu_info> vcpu_info;
 
+static void *migration_thread_fn(void *)
+{
+    _migrator = new Migration(&mb);
+    _migrator->send(_migration_ip, _migration_port);
+
+    delete _migrator;
+    _migrator = nullptr;
+
+    return nullptr;
+}
+
+static void start_migration_to(unsigned ip, unsigned port)
+{
+    _migration_ip = ip;
+    _migration_port = port;
+    _restore_mode = Migration::MODE_SEND;
+
+    pthread_t migthread;
+    if (0 != pthread_create(&migthread, NULL, migration_thread_fn, NULL)) {
+        perror("pthread_create");
+        return;
+    }
+    pthread_setname_np(migthread, "migration");
+}
+
 static bool receive(Device *, MessageHostOp &msg)
 {
     bool res = true;
@@ -434,6 +459,11 @@ static bool receive(Device *, MessageHostOp &msg)
         _migration_port = msg.value;
         _restore_mode = Migration::MODE_RECEIVE;
         _migrator = new Migration(&mb);
+    }
+    break;
+    case MessageHostOp::OP_MIGRATION_START: {
+        start_migration_to(msg.value, 9000);
+        return true;
     }
     break;
 
@@ -635,32 +665,6 @@ static bool receive(Device *, MessageDisk &msg)
   mb.bus_diskcommit.send(cmsg);
 
   return true;
-}
-
-
-static void *migration_thread_fn(void *)
-{
-    _migrator = new Migration(&mb);
-    _migrator->send(_migration_ip, _migration_port);
-
-    delete _migrator;
-    _migrator = nullptr;
-
-    return nullptr;
-}
-
-static void start_migration_to(unsigned ip, unsigned port)
-{
-    _migration_ip = ip;
-    _migration_port = port;
-    _restore_mode = Migration::MODE_SEND;
-
-    pthread_t migthread;
-    if (0 != pthread_create(&migthread, NULL, migration_thread_fn, NULL)) {
-        perror("pthread_create");
-        return;
-    }
-    pthread_setname_np(migthread, "migration");
 }
 
 static void usage()
