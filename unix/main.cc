@@ -5,6 +5,7 @@
  * Economic rights: Technische Universitaet Dresden (Germany)
  *
  * Copyright (C) 2013 Jacek Galowicz, Intel Corporation.
+ * Copyright (C) 2013 Markus Partheymueller, Intel Corporation.
  *
  * This file is part of Seoul.
  *
@@ -52,6 +53,12 @@
 #include <seoul/unix.h>
 #include <nul/migration.h>
 
+#define USE_IOTHREAD
+
+#ifdef USE_IOTHREAD
+#include "iothread.h"
+#endif
+
 const char version_str[] =
 #include "version.inc"
   ;
@@ -89,7 +96,10 @@ static const char *pc_ps2[] = {
   "rtl8029:,9,0x300",
   "ahci:0xe0800000,14",
   "pmtimer:0x8000",
-  // 1 vCPU
+  // 4 vCPUs
+  "vcpu", "halifax", "vbios", "lapic",
+  "vcpu", "halifax", "vbios", "lapic",
+  "vcpu", "halifax", "vbios", "lapic",
   "vcpu", "halifax", "vbios", "lapic",
   NULL,
   };
@@ -100,9 +110,11 @@ static TimeoutList<32, void> timeouts;
 static timevalue             last_to = ~0ULL;
 static timer_t               timer_id;
 
-
-static Clock                 mb_clock(1000000);   // XXX Use correct frequency
-static Motherboard           mb(&mb_clock, NULL);
+Motherboard                 *mb;
+Clock                       *mb_clock;
+#ifdef USE_IOTHREAD
+IOThread                    *iothread_obj;
+#endif
 
 // Multiboot module data
 
@@ -278,7 +290,7 @@ static std::vector<Vcpu_info> vcpu_info;
 
 static void *migration_thread_fn(void *)
 {
-    _migrator = new Migration(&mb);
+    _migrator = new Migration(mb);
     _migrator->send(_migration_ip, _migration_port);
 
     delete _migrator;
@@ -300,6 +312,14 @@ static void start_migration_to(unsigned ip, unsigned port)
     }
     pthread_setname_np(migthread, "migration");
 }
+
+#ifdef USE_IOTHREAD
+void * iothread_worker(void *) {
+  iothread_obj->worker();
+
+  return NULL;
+}
+#endif
 
 static bool receive(Device *, MessageHostOp &msg)
 {
@@ -477,7 +497,7 @@ static bool receive(Device *, MessageHostOp &msg)
     case MessageHostOp::OP_MIGRATION_RETRIEVE_INIT: {
         _migration_port = msg.value;
         _restore_mode = Migration::MODE_RECEIVE;
-        _migrator = new Migration(&mb);
+        _migrator = new Migration(mb);
     }
     break;
     case MessageHostOp::OP_MIGRATION_START: {
@@ -496,7 +516,7 @@ static bool receive(Device *, MessageHostOp &msg)
 
 static void timeout_trigger()
 {
-  timevalue now = mb.clock()->time();
+  timevalue now = mb_clock->time();
 
   // Force time reprogramming. Otherwise, we might not reprogram a
   // timer, if the timeout event reached us too early.
@@ -507,7 +527,7 @@ static void timeout_trigger()
   while ((nr = timeouts.trigger(now))) {
     MessageTimeout msg(nr, timeouts.timeout());
     timeouts.cancel(nr);
-    mb.bus_timeout.send(msg);
+    mb->bus_timeout.send(msg);
   }
 }
 
@@ -516,7 +536,7 @@ static void timeout_request()
 {
   timevalue next_to = timeouts.timeout();
   if (next_to != ~0ULL) {
-    unsigned long long delta = mb_clock.delta(next_to, 1000000000UL);
+    unsigned long long delta = mb_clock->delta(next_to, 1000000000UL);
 
     if (delta == 0) {
       // Timeout pending NOW. Skip programming a timeout.
@@ -570,7 +590,7 @@ static bool receive(Device *, MessageTime &msg)
 {
   struct timeval tv;
   gettimeofday(&tv, NULL);
-  msg.timestamp = mb_clock.clock(MessageTime::FREQUENCY);
+  msg.timestamp = mb_clock->clock(MessageTime::FREQUENCY);
 
   assert(MessageTime::FREQUENCY == 1000000U);
   msg.wallclocktime = (uint64)tv.tv_sec * 1000000 + tv.tv_usec;
@@ -600,7 +620,7 @@ static void *network_io_thread_fn(void *)
     MessageNetwork msg(network_pbuf, res, 0);
 
     pthread_mutex_lock(&irq_mtx);
-    mb.bus_network.send(msg);
+    mb->bus_network.send(msg);
     pthread_mutex_unlock(&irq_mtx);
   }
 
@@ -681,7 +701,7 @@ static bool receive(Device *, MessageDisk &msg)
   }
 
   MessageDiskCommit cmsg(msg.disknr, msg.usertag, status);
-  mb.bus_diskcommit.send(cmsg);
+  mb->bus_diskcommit.send(cmsg);
 
   return true;
 }
@@ -751,15 +771,27 @@ int main(int argc, char **argv)
     return EXIT_FAILURE;
   }
 
+  mb_clock = new Clock(get_tsc_frequency());
+  mb = new Motherboard(mb_clock, NULL);
 
-  mb.bus_hostop .add(nullptr, receive);
-  mb.bus_timer  .add(nullptr, receive);
-  mb.bus_time   .add(nullptr, receive);
+#ifdef USE_IOTHREAD
+  iothread_obj = new IOThread(mb);
+  pthread_t iothread_worker_thread;
+  if (0 != pthread_create(&iothread_worker_thread, NULL, iothread_worker, NULL)) {
+    perror("create iothread_worker failed");
+    return EXIT_FAILURE;
+  }
+  pthread_setname_np(iothread_worker_thread, "iothread_worker");
+#endif
 
-  mb.bus_network.add(nullptr, receive);
-  mb.bus_disk   .add(nullptr, receive);
+  mb->bus_hostop .add(nullptr, receive);
+  mb->bus_timer  .add(nullptr, receive);
+  mb->bus_time   .add(nullptr, receive);
 
-  mb.bus_restore.add(&timeouts, TimeoutList<32, void>::receive_static<MessageRestore>);
+  mb->bus_network.add(nullptr, receive);
+  mb->bus_disk   .add(nullptr, receive);
+
+  mb->bus_restore.add(&timeouts, TimeoutList<32, void>::receive_static<MessageRestore>);
 
   // Synchronization initialization
   if (0 != pthread_mutex_init(&irq_mtx, nullptr)) {
@@ -770,14 +802,19 @@ int main(int argc, char **argv)
 
   // Create standard PC
   for (const char **dev = pc_ps2; *dev != NULL; dev++) {
-    mb.handle_arg(*dev);
+    mb->handle_arg(*dev);
   }
 
   Logging::printf("Devices and %zu virtual CPU%s started successfully.\n",
                   vcpu_info.size(), vcpu_info.size() == 1 ? "" : "s");
 
+#ifdef USE_IOTHREAD
+  // Init I/O thread (vCPU local busses)
+  iothread_obj->init();
+#endif
+
   // init VCPUs
-  for (VCpu *vcpu = mb.last_vcpu; vcpu; vcpu=vcpu->get_last()) {
+  for (VCpu *vcpu = mb->last_vcpu; vcpu; vcpu=vcpu->get_last()) {
     Logging::printf("Initializing virtual CPU %p.\n", vcpu);
 
     // init CPU strings
@@ -799,7 +836,7 @@ int main(int argc, char **argv)
 
   Logging::printf("RESET device state\n");
   MessageLegacy msg2(MessageLegacy::RESET, 0);
-  mb.bus_legacy.send_fifo(msg2);
+  mb->bus_legacy.send_fifo(msg2);
 
   if (_restore_mode != Migration::MODE_OFF) {
       /*
@@ -807,7 +844,7 @@ int main(int argc, char **argv)
        * it is blocked by and catches it into the recall handler.
        */
        MessageLegacy msg3(MessageLegacy::UNLOCK, 0);
-       mb.bus_legacy.send_fifo(msg3);
+       mb->bus_legacy.send_fifo(msg3);
   }
 
   pthread_t iothread;
