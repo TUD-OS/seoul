@@ -7,6 +7,7 @@
  * Economic rights: Technische Universitaet Dresden (Germany)
  *
  * Copyright (C) 2013 Jacek Galowicz, Intel Corporation.
+ * Copyright (C) 2013 Markus Partheymueller, Intel Corporation.
  *
  * This file is part of Vancouver.
  *
@@ -24,6 +25,46 @@
 
 #include <nul/types.h>
 #include <nul/compiler.h>
+class VCpu;
+struct MessageIOThread
+{
+  VCpu *vcpu;
+  enum Type {
+    TYPE_IOIN,
+    TYPE_IOOUT,
+    TYPE_MEM,
+    TYPE_INPUT,
+    TYPE_IRQ,
+    TYPE_IRQLINES,
+    TYPE_IRQNOTIFY,
+    TYPE_NETWORK,
+    TYPE_DISK,
+    TYPE_DISKCOMMIT,
+    TYPE_LEGACY,
+    TYPE_TIME,
+    TYPE_TIMER,
+    TYPE_TIMEOUT,
+    TYPE_PCICFG,
+    TYPE_HOSTOP,
+    TYPE_CPU,
+  } type;
+  enum Mode {
+    MODE_NORMAL,
+    MODE_EARLYOUT,
+    MODE_FIFO,
+    MODE_RR
+  } mode;
+  enum Sync {
+    SYNC_SYNC,
+    SYNC_ASYNC
+  } sync;
+  unsigned *value;
+  void *ptr;
+  void *sem;
+
+  MessageIOThread(Type _type, Mode _mode, Sync _sync, void *_ptr) : vcpu(nullptr), type(_type), mode(_mode), sync(_sync), value(nullptr), ptr(_ptr), sem(nullptr) {}
+  MessageIOThread(Type _type, Mode _mode, Sync _sync, unsigned *_value, void *_ptr) : vcpu(nullptr), type(_type), mode(_mode), sync(_sync), value(_value), ptr(_ptr), sem(nullptr) {}
+};
 
 /****************************************************/
 /* IOIO messages                                    */
