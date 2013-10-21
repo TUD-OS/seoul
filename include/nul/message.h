@@ -567,6 +567,23 @@ struct MessageAcpi
   MessageAcpi(unsigned _parent_bdf, unsigned _bdf, unsigned char _pin): type(ACPI_GET_IRQ), parent_bdf(_parent_bdf), bdf(_bdf), pin(_pin), gsi(~0u) {}
 };
 
+/**
+ * Virtual ACPI: Fixed and General Purpose Events
+ * can be triggered with these messages
+ */
+struct MessageAcpiEvent
+{
+    enum EventType {
+        ACPI_EVENT_FIXED,
+        ACPI_EVENT_GP,
+        ACPI_EVENT_HOT_UNPLUG,
+        ACPI_EVENT_HOT_REPLUG,
+    } type;
+    unsigned num;
+
+    MessageAcpiEvent(EventType _type, unsigned _num)
+        : type(_type), num(_num) {};
+};
 
 /**
  * Resource discovery between device models is done by the virtual

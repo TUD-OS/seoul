@@ -50,6 +50,7 @@ class Motherboard
 
  public:
   DBus<MessageAcpi>         bus_acpi;
+  DBus<MessageAcpiEvent>    bus_acpi_event;
   DBus<MessageAhciSetDrive> bus_ahcicontroller;
   DBus<MessageApic>         bus_apic;
   DBus<MessageBios>         bus_bios;

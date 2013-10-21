@@ -94,6 +94,29 @@ class AcpiController : public StaticReceiver<AcpiController>, public BiosCommon
             _mb.bus_irqlines.send(msg);
         }
 
+        bool  receive(MessageAcpiEvent &msg) {
+            switch (msg.type) {
+                case MessageAcpiEvent::ACPI_EVENT_GP:
+                    trigger_gpe(msg.num);
+                    break;
+                case MessageAcpiEvent::ACPI_EVENT_HOT_REPLUG:
+                    _pciu |= (1 << msg.num);
+                    trigger_gpe(1);
+                    break;
+                case MessageAcpiEvent::ACPI_EVENT_HOT_UNPLUG:
+                    _watch.start();
+                    _pcid |= (1 << msg.num);
+                    trigger_gpe(1);
+                    break;
+
+                case MessageAcpiEvent::ACPI_EVENT_FIXED:
+                default:
+                    return false;
+            }
+
+            return true;
+        }
+
         bool  receive(MessageDiscovery &msg) {
             if (msg.type != MessageDiscovery::DISCOVERY) return false;
 
@@ -318,5 +341,6 @@ PARAM_HANDLER(acpimodel,
     mb.bus_discovery .add(dev, AcpiController::receive_static<MessageDiscovery>);
     mb.bus_ioin      .add(dev, AcpiController::receive_static<MessageIOIn>);
     mb.bus_ioout     .add(dev, AcpiController::receive_static<MessageIOOut>);
+    mb.bus_acpi_event.add(dev, AcpiController::receive_static<MessageAcpiEvent>);
     mb.bus_restore   .add(dev, AcpiController::receive_static<MessageRestore>);
 }
