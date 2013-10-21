@@ -123,6 +123,7 @@ sources = Glob('*.cc') + [            # Unix frontend
       '../model/pmtimer.cc',
       '../model/vcpu.cc',
       '../model/vbios.cc',
+      '../model/acpicontroller.cc',
       '../model/lapic.cc',
       '../model/msi.cc',
       '../host/hostkeyboard.cc',
