@@ -336,6 +336,9 @@ bool Migration::listen(unsigned port, CpuState *vcpu_utcb)
 
     _socket->close();
 
+    MessageRestore replug_msg(MessageRestore::PCI_PLUG, NULL, true);
+    _mb->bus_restore.send(replug_msg, false);
+
     Logging::printf("That's it. Waking up VCPUs.\n");
     unfreeze_vcpus();
 
