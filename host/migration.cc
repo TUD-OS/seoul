@@ -36,6 +36,15 @@ Migration::Migration(Motherboard *mb)
     _socket(NULL),
     _sendmem(0), _sendmem_total(0)
 {
+       _vcpu_utcb = new CpuState;
+}
+
+Migration::~Migration()
+{
+}
+
+void Migration::init_memrange_info()
+{
     MessageHostOp msg(MessageHostOp::OP_GUEST_MEM, 0UL);
     if (!_mb->bus_hostop.send(msg))
         Logging::panic("%s failed to get physical memory\n",
@@ -45,12 +54,6 @@ Migration::Migration(Motherboard *mb)
     _physmem_size  = msg.len;
 
     _dirtman = DirtManager(_physmem_size >> 12);
-
-    _vcpu_utcb = new CpuState;
-}
-
-Migration::~Migration()
-{
 }
 
 void Migration::save_guestregs(CpuState *utcb)
@@ -313,6 +316,8 @@ bool Migration::receive_guestdevices(CpuState *vcpu_utcb)
 
 bool Migration::listen(unsigned port, CpuState *vcpu_utcb)
 {
+    init_memrange_info();
+
     print_welcomescreen();
 
     _socket = IpHelper::instance().listen(port);
@@ -625,6 +630,8 @@ bool Migration::send(unsigned long addr, unsigned long port)
     StopWatch migration_timer(_mb->clock());
     StopWatch freeze_timer(_mb->clock());
     longrange_data async_data;
+
+    init_memrange_info();
 
     Logging::printf("Trying to connect...\n");
     _socket = IpHelper::instance().connect(addr, port);

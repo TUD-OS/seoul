@@ -235,6 +235,7 @@ class Migration : public StaticReceiver<Migration>
 
     DirtManager _dirtman;
 
+    void init_memrange_info();
     void print_welcomescreen();
     bool puts_guestscreen(const char *str, bool reset_screen);
 
