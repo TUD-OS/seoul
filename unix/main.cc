@@ -384,43 +384,62 @@ static bool receive(Device *, MessageHostOp &msg)
          * - pageptr wraps around if it exceeds guest mem size.
          */
 #if PORTED_TO_UNIX
-        static unsigned long pageptr = 0;
         const unsigned physpages = _physsize >> 12;
+        static unsigned long pageptr = 0;
 
-        // Setting this to true makes the map_memory_helper function
-        // remap with page size
         _track_page_usage = true;
 
         Crd reg = nova_lookup(Crd(pageptr, 0, DESC_MEM_ALL));
         // There will be several mappings, but we want to see the ones
         // which are set to "writable by the guest"
 
-        unsigned long oldptr = pageptr;
-        while (!(reg.attr() & DESC_RIGHT_W)) {
-            pageptr = (pageptr + 1) % physpages;
-            if (pageptr == oldptr) {
-                // Come back later, please.
+        unsigned increment = 0;
+        do {
+            if (increment >= physpages) {
+                // That's it for now. Come back later.
                 msg.value = 0;
                 return true;
-        }
+            }
+            MessageMemRegion mmsg(pageptr);
+            if (!_mb->bus_memregion.send(mmsg, true)) {
+                // No one claims this region. Do not track.
+                pageptr = (pageptr + 1) % physpages;
+                ++increment;
+                continue;
+            }
+            if (!mmsg.actual_physmem) {
+                // This is no physmem.
+                pageptr += mmsg.count;
+                increment += mmsg.count;
+                if (pageptr > physpages) pageptr = 0;
+                continue;
+            }
+            reg = nova_lookup(Crd(pageptr, 0, DESC_MEM_ALL));
+            if (!(reg.attr() & DESC_RIGHT_W)) {
+                // Not write-mapped, hence not dirty.
+                pageptr += 1 << reg.order();
+                increment += 1 << reg.order();
+                if (pageptr > physpages) pageptr = 0;
+                continue;
+            }
 
-        reg = nova_lookup(Crd(pageptr, 0, DESC_MEM_ALL));
-        }
+            break;
+        } while (1);
 
         // reg now describes a region which is guest-writable
-        // This means that the guest wrote to it before and it is considered "dirty"
+        // This means that the guest wrote to it before and it is now considered "dirty"
 
         // Tell the user "where" and "how many"
         msg.phys    = pageptr << 12;
         msg.phys_len = reg.order();
-
         msg.value = reg.value();
 
         // Make this page read-only for the guest, so it is considered "clean" now.
         nova_revoke(Crd((reg.base() + _physmem) >> 12, reg.order(),
-        DESC_RIGHT_W | DESC_TYPE_MEM), false);
+                    DESC_RIGHT_W | DESC_TYPE_MEM), false);
         pageptr += 1 << reg.order();
         if (pageptr >= physpages) pageptr = 0;
+
 #endif
         return true;
     }
