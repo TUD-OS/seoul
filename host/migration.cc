@@ -15,6 +15,13 @@
  * General Public License version 2 for more details.
  */
 
+/* Activate checksumming for debugging purposes
+ * of the received range after migrating.
+ * As this really makes the freeze gap larger,
+ * this should only be used for testing when
+ * the migration algorithm is changed. */
+//#define DO_CHECKSUMMING
+
 
 #include <stdio.h> // snprintf
 
@@ -355,7 +362,7 @@ bool Migration::listen(unsigned port, CpuState *vcpu_utcb)
 
     receive_guestdevices(vcpu_utcb);
 
-#if 0
+#ifdef DO_CHECKSUMMING
     // Checksumming really makes the migration gap larger
     if (!checksums(true)) {
         Logging::printf("Error while comparing checksums.\n");
@@ -709,7 +716,7 @@ bool Migration::send(unsigned long addr, unsigned long port)
         return false;
     }
 
-#if 0
+#ifdef DO_CHECKSUMMING
     // Checksumming really makes the freeze gap larger
     if (!checksums(false)) {
         Logging::printf("Error while sending checksums.\n");
