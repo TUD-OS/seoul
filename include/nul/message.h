@@ -112,7 +112,8 @@ struct MessageMemRegion
   uintptr_t start_page;
   unsigned      count;
   char *        ptr;
-  MessageMemRegion(uintptr_t _page) : page(_page), count(0), ptr(0) {}
+  bool      actual_physmem;
+  MessageMemRegion(uintptr_t _page) : page(_page), count(0), ptr(0), actual_physmem(false) {}
 };
 
 
