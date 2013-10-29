@@ -147,46 +147,70 @@ bool Migration::chksum_page(unsigned page_nr, mword &their_chksum, bool compare)
 
 bool Migration::checksums(bool retrieve)
 {
-    unsigned entries = _physmem_size >> 12;
+    mword pagenr = 0;
+    mword checksum;
+    mword magic = 0xfafab0b0;
     bool success = true;
-
-    mword *chksum = new mword[entries];
-    if (!chksum) Logging::panic("Allocating checksum list error\n");
-
-    Logging::printf("Checksumming the area [%8lx - %8lx)\n",
-            reinterpret_cast<mword>(_physmem_start),
-            reinterpret_cast<mword>(_physmem_start + 4096 * entries));
 
     if (retrieve) {
         // Receiver. Check the existing checksum list against our memory
-        _socket->receive(chksum, entries * sizeof(chksum[0]));
+        mword rec_magic;
 
-        unsigned err = 0;
+        _socket->receive(&rec_magic, sizeof(rec_magic));
+        _socket->receive(&pagenr, sizeof(pagenr));
+        _socket->receive(&checksum, sizeof(checksum));
 
-        for (unsigned i=0; i < entries; ++i) {
-            bool ret = chksum_page(i, chksum[i], true);
-            if (!ret) {
-                ++err;
-                Logging::printf("bad page received. page number: %8x\n", i);
-            }
-            success &= ret;
+        while (pagenr != ~0ul) {
+            assert(magic == rec_magic);
+            MessageMemRegion mmsg(pagenr);
+            assert(_mb->bus_memregion.send(mmsg, true));
+            assert(mmsg.actual_physmem);
+
+            bool area_success = chksum_page(mmsg.start_page, checksum, true);
+            success &= area_success;
+
+            Logging::printf("Checksum of area [%8lx - %8lx) - %s\n",
+                reinterpret_cast<mword>(mmsg.start_page),
+                reinterpret_cast<mword>(mmsg.start_page + mmsg.count),
+                area_success ? "OK" : "Error");
+
+            _socket->receive(&rec_magic, sizeof(rec_magic));
+            _socket->receive(&pagenr, sizeof(pagenr));
+            _socket->receive(&checksum, sizeof(checksum));
         }
-
-        Logging::printf("Erroneous pages: %u\n", err);
     }
     else {
         // Sender. Make a list of checksums and send it away.
 
-        for (unsigned i=0; i < entries; ++i)
-            chksum_page(i, chksum[i], false);
+        while (pagenr < _physmem_size) {
+            MessageMemRegion mmsg(pagenr);
+            if (!_mb->bus_memregion.send(mmsg, true) || !mmsg.actual_physmem) {
+                // No one claims this region. do not check.
+                ++pagenr;
+                continue;
+            }
 
-        success &= _socket->send(chksum, entries * sizeof(chksum[0]));
+            Logging::printf("Checksumming the area [%8lx - %8lx)\n",
+                reinterpret_cast<mword>(mmsg.start_page),
+                reinterpret_cast<mword>(mmsg.start_page + mmsg.count));
+
+            chksum_page(pagenr, checksum, false);
+            success &= _socket->send(&magic, sizeof(magic));
+            success &= _socket->send(&pagenr, sizeof(pagenr));
+            success &= _socket->send(&checksum, sizeof(checksum));
+
+            pagenr += mmsg.count;
+        }
+
+        pagenr = ~0ul;
+        success &= _socket->send(&magic, sizeof(magic));
+        success &= _socket->send(&pagenr, sizeof(pagenr));
+        success &= _socket->send(&pagenr, sizeof(pagenr));
     }
-
-    delete [] chksum;
 
     return success;
 }
+
 
 /***********************************************************************
  * Guest receiving part
