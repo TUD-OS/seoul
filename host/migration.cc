@@ -30,7 +30,6 @@
 
 #include <nul/migration.h>
 #include <service/vprintf.h>
-#include <service/time.h>
 
 Migration::Migration(Motherboard *mb)
 : _mb(mb),
@@ -41,7 +40,8 @@ Migration::Migration(Motherboard *mb)
 #endif
     _vcpu_should_block(false),
     _socket(NULL),
-    _sendmem(0), _sendmem_total(0)
+    _sendmem(0), _sendmem_total(0),
+    _freeze_timer(_mb->clock())
 {
        _vcpu_utcb = new CpuState;
 }
@@ -120,6 +120,8 @@ void Migration::freeze_vcpus()
 #if PORTED_TO_UNIX
     _vcpu_blocked_sem.downmulti();
 #endif
+
+    _freeze_timer.start();
 }
 
 void Migration::unfreeze_vcpus()
@@ -568,9 +570,13 @@ bool Migration::send_memory(longrange_data &async_data)
     // The last transfer round with a frozen guest system will follow now
     freeze_vcpus();
 
+    unsigned freeze_pages = 0;
+    while ((freeze_pages = enqueue_all_dirty_pages(async_data)) > 0) {
+        if (!_socket->wait_complete()) return false;
+        pages_transferred += freeze_pages;
+    }
+
     static Prd end_of_crds;
-    pages_transferred = enqueue_all_dirty_pages(async_data);
-    Logging::printf("pages_dirty: %x\n", pages_transferred);
     if (!pages_transferred ||
         !_socket->send_nonblocking(&end_of_crds, sizeof(end_of_crds)))
         return false;
@@ -659,7 +665,6 @@ bool Migration::send_devices(longrange_data dat)
 bool Migration::send(unsigned long addr, unsigned long port)
 {
     StopWatch migration_timer(_mb->clock());
-    StopWatch freeze_timer(_mb->clock());
     longrange_data async_data;
 
     init_memrange_info();
@@ -709,7 +714,6 @@ bool Migration::send(unsigned long addr, unsigned long port)
         Logging::printf("Sending guest state failed.\n");
         return false;
     }
-    freeze_timer.start();
 
     if (!send_devices(async_data)) {
         Logging::printf("Sending guest devices failed.\n");
@@ -727,13 +731,13 @@ bool Migration::send(unsigned long addr, unsigned long port)
     // Uncomment this to "clone" the VM instead of migrating it away.
     //unfreeze_vcpus();
 
-    freeze_timer.stop();
+    _freeze_timer.stop();
 
     _socket->close();
 
     migration_timer.stop();
 
-    Logging::printf("Done. VM was frozen for %llu ms.\n", freeze_timer.delta());
+    Logging::printf("Done. VM was frozen for %llu ms.\n", _freeze_timer.delta());
     Logging::printf("This migration took %llu seconds.\n",
             migration_timer.delta() / 1000);
     Logging::printf("%3lu%% (%lu MB) of guest memory resent due to change.\n",

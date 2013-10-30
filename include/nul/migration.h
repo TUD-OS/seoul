@@ -15,11 +15,10 @@
  * General Public License version 2 for more details.
  */
 
-
-
 #include <nul/motherboard.h>
 #include <nul/iphelper.h>
 #include <nul/migration_structs.h>
+#include <service/time.h>
 
 class Desc
 {
@@ -212,6 +211,8 @@ class Migration : public StaticReceiver<Migration>
 
     unsigned long   _sendmem;
     unsigned long   _sendmem_total;
+
+    StopWatch       _freeze_timer;
 
     /* Because of asynchronous send operations, all
      * data to be send has to be preserved somewhere until
