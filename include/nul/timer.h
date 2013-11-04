@@ -5,6 +5,7 @@
  * Economic rights: Technische Universitaet Dresden (Germany)
  *
  * Copyright (C) 2013 Jacek Galowicz, Intel Corporation.
+ * Copyright (C) 2013 Markus Partheymueller, Intel Corporation.
  *
  * This file is part of Vancouver.
  *
@@ -198,11 +199,11 @@ public:
   TimeoutList() : _restore_processed(false) { init(); }
 
 #define REL_PTR(ptr, offset) ( \
-    reinterpret_cast<typeof(ptr)>( \
+    reinterpret_cast<__typeof__(ptr)>( \
         reinterpret_cast<mword>(ptr) - reinterpret_cast<mword>(offset)) \
 )
 #define ABS_PTR(ptr, offset) ( \
-    reinterpret_cast<typeof(ptr)>( \
+    reinterpret_cast<__typeof__(ptr)>( \
         reinterpret_cast<mword>(ptr) + reinterpret_cast<mword>(offset)) \
 )
 
