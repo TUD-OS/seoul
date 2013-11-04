@@ -372,6 +372,7 @@ public:
   /**
    * Forward MEM requests to the motherboard.
    */
+  bool claim(MessageMem &msg) { /* The entire vCPU subsystem should be bypassing */ return true; }
   bool receive(MessageMem &msg) { return _mb.bus_mem.send(msg, true); }
   bool receive(MessageMemRegion &msg) { return _mb.bus_memregion.send(msg, true); }
 
@@ -423,6 +424,7 @@ public:
     return false;
   }
 
+  bool claim(CpuMessage &msg) { /* Entire vCPU subsystem should be bypassing */ return true; }
   bool receive(CpuMessage &msg) {
 
     if (msg.type == CpuMessage::TYPE_ADD_TSC_OFF) {
@@ -516,8 +518,10 @@ public:
 
     // add to the busses
     executor. add(this, VirtualCpu::receive_static<CpuMessage>);
+    executor.add_iothread_callback(this, VirtualCpu::claim_static<CpuMessage>);
     bus_event.add(this, VirtualCpu::receive_static<CpuEvent>);
     mem.      add(this, VirtualCpu::receive_static<MessageMem>);
+    mem.add_iothread_callback(this, VirtualCpu::claim_static<MessageMem>);
     memregion.add(this, VirtualCpu::receive_static<MessageMemRegion>);
     mb.bus_legacy.add(this, VirtualCpu::receive_static<MessageLegacy>);
     bus_lapic.add(this, VirtualCpu::receive_static<LapicEvent>);

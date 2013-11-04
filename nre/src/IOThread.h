@@ -94,6 +94,5 @@ public:
     mb->bus_legacy.set_iothread_enqueue(this, enqueue_static<MessageLegacy>);
     mb->bus_network.set_iothread_enqueue(this, enqueue_static<MessageNetwork>);
     mb->bus_pcicfg.set_iothread_enqueue(this, enqueue_static<MessagePciConfig>);
-    mb->bus_hostop.set_iothread_enqueue(this, enqueue_static<MessageHostOp>);
   }
 };

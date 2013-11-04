@@ -139,7 +139,6 @@ bool IOThread::enqueue(MessageTimer &msg, MessageIOThread::Mode mode, MessageIOT
    * Because they are a result of an earlier message, timeout requests should never be enqueued.
    */
   if (msg.type == MessageTimer::TIMER_NEW) sync = MessageIOThread::SYNC_SYNC;
-  else Logging::panic("MessageTimer request nr %u\n", msg.nr);
   MessageTimer *ptr;
   if (sync == MessageIOThread::SYNC_ASYNC) {
     ptr = new MessageTimer;

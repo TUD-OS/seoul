@@ -5,6 +5,7 @@
  * Economic rights: Technische Universitaet Dresden (Germany)
  *
  * Copyright (C) 2013 Jacek Galowicz, Intel Corporation.
+ * Copyright (C) 2013 Markus Partheymueller, Intel Corporation.
  *
  * This file is part of Vancouver.
  *
@@ -268,7 +269,12 @@ private:
     return true;
   }
 
+  bool claim(MessageIrq &msg) {
+    for (unsigned i = 0; i < _irq_count; i++)
+      if (_host_irqs[i] == msg.line) return true;
 
+    return false;
+  }
   bool receive(MessageIrq &msg)
   {
     for (unsigned i = 0; i < _irq_count; i++)
@@ -312,8 +318,11 @@ private:
     return _mb.bus_hostop.send(msg2);
   }
 
-
-
+  bool claim(MessageMem &msg)
+  {
+    unsigned *ptr;
+    return match_bars(msg.phys, 4, ptr);
+  }
   bool receive(MessageMem &msg)
   {
     unsigned *ptr;
@@ -472,10 +481,12 @@ private:
     mb.bus_ioin.add(this,   DirectPciDevice::receive_static<MessageIOIn>);
     mb.bus_ioout.add(this,  DirectPciDevice::receive_static<MessageIOOut>);
     mb.bus_mem.add(this,    DirectPciDevice::receive_static<MessageMem>);
+    mb.bus_mem.add_iothread_callback(this, DirectPciDevice::claim_static<MessageMem>);
     mb.bus_legacy.add(this, DirectPciDevice::receive_static<MessageLegacy>);
     if (map_mode != MAP_MODE_DISABLED)
       mb.bus_memregion.add(this, DirectPciDevice::receive_static<MessageMemRegion>);
     mb.bus_hostirq.add(this,     DirectPciDevice::receive_static<MessageIrq>);
+    mb.bus_hostirq.add_iothread_callback(this, DirectPciDevice::claim_static<MessageIrq>);
     mb.bus_restore.add(this,     DirectPciDevice::receive_static<MessageRestore>);
     //mb.bus_irqnotify.add(this, DirectPciDevice::receive_static<MessageIrqNotify>);
   }

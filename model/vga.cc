@@ -5,6 +5,7 @@
  * Economic rights: Technische Universitaet Dresden (Germany)
  *
  * Copyright (C) 2013 Jacek Galowicz, Intel Corporation.
+ * Copyright (C) 2013 Markus Partheymueller, Intel Corporation.
  *
  * This file is part of Vancouver.
  *
@@ -479,7 +480,10 @@ public:
     return res;
   }
 
-
+  bool  claim(MessageMem &msg)
+  {
+    return ((in_range(msg.phys, _framebuffer_phys, _framebuffer_size)) || (in_range(msg.phys, LOW_BASE, LOW_SIZE)));
+  }
   bool  receive(MessageMem &msg)
   {
     unsigned *ptr;
@@ -632,6 +636,7 @@ PARAM_HANDLER(vga,
   mb.bus_ioout    .add(dev, Vga::receive_static<MessageIOOut>);
   mb.bus_bios     .add(dev, Vga::receive_static<MessageBios>);
   mb.bus_mem      .add(dev, Vga::receive_static<MessageMem>);
+  mb.bus_mem.add_iothread_callback(dev, Vga::claim_static<MessageMem>);
   mb.bus_memregion.add(dev, Vga::receive_static<MessageMemRegion>);
   mb.bus_discovery.add(dev, Vga::receive_static<MessageDiscovery>);
   mb.bus_restore.add(dev, Vga::receive_static<MessageRestore>);
