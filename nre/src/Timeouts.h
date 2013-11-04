@@ -41,7 +41,7 @@ public:
         nre::Reference<nre::GlobalThread> gt = nre::GlobalThread::create(
             timer_thread, _cpu, "vmm-timeouts");
         gt->set_tls<Timeouts*>(nre::Thread::TLS_PARAM, this);
-        gt->start();
+        gt->start(nre::Qpd(2, 10000));
     }
 
     nre::TimerSession &session() {

@@ -53,7 +53,7 @@ public:
         nre::Reference<nre::GlobalThread> io = nre::GlobalThread::create(
             iothread_worker, nre::CPU::current().log_id(), "vmm-io");
         io->set_tls<Vancouver*>(nre::Thread::TLS_PARAM, this);
-        io->start();
+        io->start(nre::Qpd(2, 10000));
 
         _timeouts = new Timeouts *[nre::CPU::count()];
         for (cpu_t i=0; i<nre::CPU::count(); i++)
@@ -79,7 +79,7 @@ public:
             nre::Reference<nre::GlobalThread> network = nre::GlobalThread::create(
                 network_thread, nre::CPU::current().log_id(), "vmm-network");
             network->set_tls<Vancouver*>(nre::Thread::TLS_PARAM, this);
-            network->start();
+            network->start(nre::Qpd(2, 10000));
         }
         catch(const nre::Exception &e) {
             nre::Serial::get() << "Unable to connect to network: " << e.msg() << "\n";
