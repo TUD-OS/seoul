@@ -33,6 +33,7 @@
 #include "StorageDevice.h"
 #include "VCPUBackend.h"
 #include "ConsoleBackend.h"
+#include "IOThread.h"
 
 extern nre::UserSm globalsm;
 
@@ -42,9 +43,18 @@ class Vancouver : public StaticReceiver<Vancouver> {
 public:
     explicit Vancouver(const char **args, size_t count, size_t console, const nre::String &constitle,
                        size_t fbsize)
-        : _clock(nre::Hip::get().freq_tsc * 1000), _mb(&_clock, nullptr),
+        : _clock(nre::Hip::get().freq_tsc * 1000), _mb(&_clock, nullptr), _iothread_obj(nullptr),
           _conssess("console", console, constitle), _console(this, fbsize), _netsess(),
           _vmmng(), _vcpus(), _stdevs() {
+
+        _iothread_obj = new IOThread(&_mb);
+
+        // IOThread
+        nre::Reference<nre::GlobalThread> io = nre::GlobalThread::create(
+            iothread_worker, nre::CPU::current().log_id(), "vmm-io");
+        io->set_tls<Vancouver*>(nre::Thread::TLS_PARAM, this);
+        io->start();
+
         _timeouts = new Timeouts *[nre::CPU::count()];
         for (cpu_t i=0; i<nre::CPU::count(); i++)
           _timeouts[i] = new Timeouts(_mb, i);
@@ -96,6 +106,7 @@ public:
             return _vmmng->generate_mac().raw();
         return BASE_MAC + macs++;
     }
+    IOThread *iothread() { return _iothread_obj; }
 
     void reset();
     bool receive(CpuMessage &msg);
@@ -112,12 +123,14 @@ public:
 private:
     static void network_thread(void*);
     static void keyboard_thread(void*);
+    static void iothread_worker(void*);
     static void vmmng_thread(void*);
     void create_devices(const char **args, size_t count);
     void create_vcpus();
 
     Clock _clock;
     Motherboard _mb;
+    IOThread *_iothread_obj;
     Timeouts **_timeouts;
     nre::ConsoleSession _conssess;
     ConsoleBackend _console;

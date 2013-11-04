@@ -308,6 +308,7 @@ bool Vancouver::receive(MessageLegacy &msg) {
     if(msg.type != MessageLegacy::RESET)
         return false;
     // TODO ??
+    _iothread_obj->reset();
     return true;
 }
 
@@ -513,6 +514,11 @@ void Vancouver::create_vcpus() {
         vcpu->set_cpuid(1, 2, ecx_1, 0x00000201); // +SSE3,+SSSE3
         vcpu->set_cpuid(1, 3, edx_1, 0x0f80a9bf | (1 << 28)); // -PAE,-PSE36, -MTRR,+MMX,+SSE,+SSE2,+SEP
     }
+}
+
+void Vancouver::iothread_worker(void *) {
+    Vancouver *vc = Thread::current()->get_tls<Vancouver*>(Thread::TLS_PARAM);
+    vc->iothread()->worker();
 }
 
 int main(int argc, char **argv) {
