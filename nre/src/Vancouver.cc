@@ -235,17 +235,17 @@ bool Vancouver::receive(MessageHostOp &msg) {
 
         case MessageHostOp::OP_VCPU_BLOCK: {
             VCPUBackend *v = reinterpret_cast<VCPUBackend*>(msg.value);
-            globalsm.up();
-            v->sm().down();
-            globalsm.down();
+            bool block = !initialized;
+            if (block) globalsm.up();
+            v->sm().zero();
+            if (block) globalsm.down();
             res = true;
         }
         break;
 
         case MessageHostOp::OP_VCPU_RELEASE: {
             VCPUBackend *v = reinterpret_cast<VCPUBackend*>(msg.value);
-            if(msg.len)
-                v->sm().up();
+            v->sm().up();
             v->vcpu().recall();
             res = true;
         }
@@ -419,7 +419,6 @@ void Vancouver::network_thread(void*) {
             break;
 
         {
-            ScopedLock<UserSm> guard(&globalsm);
             MessageNetwork msg(packet, len, 0);
             vc->_mb.bus_network.send(msg);
         }
@@ -456,7 +455,6 @@ void Vancouver::keyboard_thread(void*) {
             }
         }
 
-        ScopedLock<UserSm> guard(&globalsm);
         MessageInput msg(0x10000, pk.scancode | pk.flags);
         vc->_mb.bus_input.send(msg);
     }
