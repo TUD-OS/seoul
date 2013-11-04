@@ -5,6 +5,7 @@
  * Economic rights: Technische Universitaet Dresden (Germany)
  *
  * Copyright (C) 2013 Jacek Galowicz, Intel Corporation.
+ * Copyright (C) 2013 Markus Partheymueller, Intel Corporation.
  *
  * This file is part of Vancouver.
  *
@@ -163,9 +164,6 @@ private:
 
     timevalue delta = (now - _timer_start) >> _timer_dcr_shift;
     if (delta < _ICT)  return _ICT - delta;
-
-    // we need to trigger the timer LVT
-    trigger_lvt(_TIMER_offset - LVT_BASE);
 
     // one shot?
     if (~_TIMER & (1 << 17))  {
@@ -525,8 +523,6 @@ public:
   {
     if (((_msr & 0xc00) != 0x800) || !in_range(msg.phys, _msr & ~0xfffull, 0x1000)) return false;
     if ((msg.phys & 0xf) || (msg.phys & 0xfff) >= 0x400) return false;
-
-
     if (msg.read)
       register_read((msg.phys >> 4) & 0x3f, *msg.ptr);
     else
@@ -557,7 +553,7 @@ public:
 
     // no need to call update timer here, as the CPU needs to do an
     // EOI first
-    get_ccr(_mb.clock()->time());
+    trigger_lvt(_TIMER_offset - LVT_BASE);
     return true;
   }
 
@@ -609,6 +605,11 @@ public:
       } else
 	msg.value = _SVR & 0xff;
       update_irqs();
+    }
+    else if (msg.type == LapicEvent::CHECK_INTR) {
+      unsigned irrv = prioritize_irq();
+      msg.value = (irrv > 0);
+      return true;
     }
     else if (msg.type == LapicEvent::RESET)
       reset();

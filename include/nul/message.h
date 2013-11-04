@@ -299,6 +299,7 @@ struct MessageLegacy
       DEASS_INTR,
       INTA,
       UNLOCK,
+      CHECK_INTR,
     } type;
   unsigned value;
   MessageLegacy(Type _type, unsigned _value=0) : type(_type), value(_value) {}

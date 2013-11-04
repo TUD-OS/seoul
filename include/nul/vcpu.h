@@ -5,6 +5,7 @@
  * Economic rights: Technische Universitaet Dresden (Germany)
  *
  * Copyright (C) 2013 Jacek Galowicz, Intel Corporation.
+ * Copyright (C) 2013 Markus Partheymueller, Intel Corporation.
  *
  * This file is part of Vancouver.
  *
@@ -87,7 +88,8 @@ struct LapicEvent {
   enum Type{
     INTA,
     RESET,
-    INIT
+    INIT,
+    CHECK_INTR
   } type;
   unsigned value;
   LapicEvent(Type _type) : type(_type) { if (type == INTA) value = ~0u; }

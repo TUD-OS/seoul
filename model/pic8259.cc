@@ -5,6 +5,7 @@
  * Economic rights: Technische Universitaet Dresden (Germany)
  *
  * Copyright (C) 2013 Jacek Galowicz, Intel Corporation.
+ * Copyright (C) 2013 Markus Partheymueller, Intel Corporation.
  *
  * This file is part of Vancouver.
  *
@@ -74,7 +75,16 @@ class PicDevice : public StaticReceiver<PicDevice>
   // helper functions
   bool is_slave()                      { return (_icw[ICW4] & ICW4_BUF) ? (~_icw[ICW4] & ICW4_MS) : _virq; }
   void rotate_prios()                  { _prio_lowest = (_prio_lowest+1) & 7; }
-  void specific_eoi(unsigned char irq) { _isr &= ~irq; propagate_irq(false); }
+  void specific_eoi(unsigned char irq) {
+    // We do the notify here to avoid races
+    unsigned char notify = __sync_fetch_and_and(&_notify, ~irq);
+    if (notify & irq) {
+      MessageIrqNotify msg(_virq, irq);
+      _bus_notify.send(msg);
+    }
+    _isr &= ~irq;
+    propagate_irq(false);
+  }
   void non_specific_eoi()
   {
     for (unsigned i=0; i<8; i++)
@@ -112,14 +122,6 @@ class PicDevice : public StaticReceiver<PicDevice>
    */
   bool prioritize_irq(unsigned char &irq_index, bool int_ack)
   {
-    unsigned char tonotify = ~_irr & _notify;
-    if (tonotify)
-      {
-	Cpu::atomic_and<unsigned char>(&_notify, ~tonotify);
-	MessageIrqNotify msg(_virq, tonotify);
-	_bus_notify.send(msg);
-      }
-
     unsigned char state = _irr & ~_imr;
     for (unsigned i=0; i<8; i++)
       {
@@ -135,6 +137,7 @@ class PicDevice : public StaticReceiver<PicDevice>
 		_isr |= irq;
 		if (~_elcr & irq)
 		  Cpu::atomic_and<unsigned char>(&_irr, ~irq);
+
 		if (_icw[ICW4] & ICW4_AEOI)
 		  {
 		    non_specific_eoi();
@@ -186,7 +189,7 @@ class PicDevice : public StaticReceiver<PicDevice>
 	}
     }
     else {
-      Logging::printf("PicDevice::%s() spurious IRQ? for irr %x isr %x imr %x %x\n", __func__, _irr, _isr, res, _imr);
+      Logging::printf("PicDevice::%s() spurious IRQ? for irr %x isr %x imr %x %x\n", __func__, _irr, _isr, _imr, res);
       res = 7;
     }
     res += _icw[ICW2];
@@ -200,6 +203,13 @@ class PicDevice : public StaticReceiver<PicDevice>
    */
   bool  receive(MessageLegacy &msg)
   {
+    if (msg.type == MessageLegacy::CHECK_INTR) {
+      if (_virq) return false;
+      unsigned char vec;
+      bool ret = prioritize_irq(vec, false);
+      msg.value = (ret) ? (0xff << 8) | vec : vec;
+      return true;
+    }
     if (msg.type != MessageLegacy::INTA) return false;
     unsigned char vec;
     get_irqvector(vec);
@@ -332,8 +342,6 @@ class PicDevice : public StaticReceiver<PicDevice>
       if (in_range(msg.line, _virq, 8))
 	{
 	  unsigned char irq = 1 << (msg.line - _virq);
-	  if (msg.type == MessageIrq::ASSERT_NOTIFY)
-	      Cpu::atomic_or(&_notify, irq);
 
 	  if (msg.type == MessageIrq::DEASSERT_IRQ)
 	    {
@@ -347,7 +355,11 @@ class PicDevice : public StaticReceiver<PicDevice>
 	    {
 	      if (msg.line == 0) COUNTER_INC("pirq0"); else COUNTER_INC("pirqN");
 
-	      Cpu::atomic_or(&_irr, irq);
+              if (msg.type == MessageIrq::ASSERT_NOTIFY)
+                Cpu::atomic_or<unsigned char>(&_notify, irq);
+
+              Cpu::atomic_or<unsigned char>(&_irr, irq);
+
 	      propagate_irq(false);
 	    }
 	  return true;

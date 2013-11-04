@@ -5,6 +5,7 @@
  * Economic rights: Technische Universitaet Dresden (Germany)
  *
  * Copyright (C) 2013 Jacek Galowicz, Intel Corporation.
+ * Copyright (C) 2013 Markus Partheymueller, Intel Corporation.
  *
  * This file is part of Vancouver.
  *
@@ -34,6 +35,7 @@ class VirtualCpu : public VCpu, public StaticReceiver<VirtualCpu>
 
   volatile unsigned _event;
   volatile unsigned _sipi;
+  unsigned long _intr_hint;
 
   unsigned char debugioin[8192];
   unsigned char debugioout[8192];
@@ -275,16 +277,32 @@ class VirtualCpu : public VCpu, public StaticReceiver<VirtualCpu>
     // if we can not inject interrupts or if we are in shutdown state return
     if (cpu->intr_state & 0x3 || ~cpu->efl & 0x200 || cpu->actv_state == 2) return;
 
+    unsigned long intr = _intr_hint;
+
     LapicEvent msg2(LapicEvent::INTA);
     if (old_event & EVENT_EXTINT) {
       // EXTINT IRQ via MSI or IPI: INTA directly from the PIC
       Cpu::atomic_and<volatile unsigned>(&_event, ~VCpu::EVENT_EXTINT);
-      receive(msg2);
+      LapicEvent check(LapicEvent::CHECK_INTR);
+      check.value = 0;
+      if (receive(check) && check.value)
+        receive(msg2);
+      else {
+        return;
+      }
     }
-    else if (old_event & EVENT_INTR) {
+    else if (intr & 1) {
       // interrupt from the APIC or directly via INTR line - INTA via LAPIC
       // do not clear EVENT_INTR here, as the PIC or the LAPIC will do this for us
-      bus_lapic.send(msg2, true);
+      LapicEvent check(LapicEvent::CHECK_INTR);
+      check.value = 0;
+      if (bus_lapic.send(check, true) && check.value) {
+        bus_lapic.send(msg2, true);
+      } else {
+        Cpu::cmpxchg8b(&_intr_hint, intr, (intr + 4) & ~1ULL);
+        Cpu::atomic_and<volatile unsigned>(&_event, ~EVENT_INTR);
+        return;
+      }
     } else return;
 
     cpu->inj_info = msg2.value | 0x80000000;
@@ -323,8 +341,12 @@ class VirtualCpu : public VCpu, public StaticReceiver<VirtualCpu>
   void got_event(unsigned value) {
     COUNTER_INC("EVENT");
 
-    if (value & DEASS_INTR) Cpu::atomic_and<volatile unsigned>(&_event, ~EVENT_INTR);
-    if (!((~_event & value) & (EVENT_MASK | EVENT_DEBUG | EVENT_HOST | EVENT_RESUME))) return;
+    Cpu::atomic_xadd<unsigned long, unsigned>(&_intr_hint, 4);
+    if (value & EVENT_INTR) Cpu::atomic_or<unsigned long>(&_intr_hint, 1);
+
+    /* Avoid delayed DEASS messages. The event loop clears INTR itself.
+    if (value & DEASS_INTR) Cpu::atomic_and<volatile unsigned>(&_event, ~EVENT_INTR);*/
+    if (!((~(_event & ~EVENT_INTR) & value) & (EVENT_MASK | EVENT_DEBUG | EVENT_HOST))) return;
 
     // INIT or AP RESET - go to the wait-for-sipi state
     if ((value & EVENT_MASK) == EVENT_INIT)
@@ -390,6 +412,12 @@ public:
       MessageLegacy msg2(MessageLegacy::INTA, msg.value);
       if (_mb.bus_legacy.send(msg2))
 	msg.value = msg2.value;
+      return true;
+    }
+    if (msg.type == LapicEvent::CHECK_INTR) {
+      MessageLegacy check(MessageLegacy::CHECK_INTR);
+      _mb.bus_legacy.send(check);
+      msg.value = (check.value & 0xff00);
       return true;
     }
     return false;
