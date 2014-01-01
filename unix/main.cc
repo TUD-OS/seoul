@@ -518,7 +518,8 @@ static bool receive(Device *, MessageDisk &msg)
 
 static void usage()
 {
-  fprintf(stderr, "Usage: seoul [-m RAM] [-n tap-device] [kernel parameters] [module1 parameters] ...\n");
+  fprintf(stderr, "Usage: seoul [-m RAM] [-n tap-device] [-d disk-image]\n"
+                  "             [kernel parameters] [module1 parameters] ...\n");
   exit(EXIT_FAILURE);
 }
 
