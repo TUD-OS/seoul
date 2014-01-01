@@ -529,6 +529,11 @@ int main(int argc, char **argv)
          "Visit https://github.com/TUD-OS/seoul for information.\n\n",
          version_str);
 
+  if (argc < 2) {
+    fprintf(stderr, "No parameters given.\n");
+    usage();
+  }
+
   int ch;
   while ((ch = getopt(argc, argv, "hm:n:d:")) != -1) {
     switch (ch) {
@@ -555,7 +560,7 @@ int main(int argc, char **argv)
 
   if ((argc - optind) % 2) {
     fprintf(stderr, "Module and command line parameters must be matched.\n");
-    return(EXIT_FAILURE);
+    usage();
   }
 
   for (int i = optind; i+1 < argc; i += 2) {
