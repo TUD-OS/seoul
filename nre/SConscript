@@ -10,7 +10,7 @@ myenv = env.Clone()
 myenv.Precious(myenv.Command(
     '../executor/instructions.inc',
     '../executor/build_instructions.py',
-    '$SOURCE > $TARGET'
+    '$SOURCE ' + myenv['CROSS'] + ' > $TARGET'
 ))
 
 # Build register handling functions for Intel 82576vf model

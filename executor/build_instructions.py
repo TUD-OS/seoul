@@ -7,14 +7,20 @@ the assembler.
 """
 
 import sys, os, tempfile, re
+
+if len(sys.argv) > 1:
+    ccprefix = sys.argv[1] + "-"
+else:
+    ccprefix = ""
+
 def compile_and_disassemble(str, file, fdict):
     if str not in fdict:
 	tmp = tempfile.NamedTemporaryFile(bufsize=0)
-	f = os.popen("as --32 -o %s -- 2> /dev/null"%(tmp.name), "w")
+	f = os.popen("%sas --32 -o %s -- 2> /dev/null"%(ccprefix,tmp.name), "w")
 	f.write(str+"\n")
 	f.close()
 	if os.path.exists(tmp.name):
-	    f = os.popen("objdump -w -d -z -M no-aliases,att-mnemonic %s"%tmp.name)
+	    f = os.popen("%sobjdump -w -d -z -M no-aliases,att-mnemonic %s"%(ccprefix,tmp.name))
 	    l = f.readlines()
 	    line = (filter(lambda x: len(x) > 2 and x[:2]=="0:", map(lambda x: x.strip(), l)) + [""])[0]
 	else:
