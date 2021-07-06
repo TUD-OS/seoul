@@ -4,6 +4,8 @@
  * Copyright (C) 2007-2009, Bernhard Kauer <bk@vmmon.org>
  * Economic rights: Technische Universitaet Dresden (Germany)
  *
+ * Copyright (C) 2013 Jacek Galowicz, Intel Corporation.
+ *
  * This file is part of Vancouver.
  *
  * Vancouver is free software: you can redistribute it and/or modify
@@ -66,6 +68,8 @@ class PicDevice : public StaticReceiver<PicDevice>
   unsigned char  _irr;
   unsigned char  _elcr;
   unsigned char  _notify;
+
+  bool _restore_processed;
 
   // helper functions
   bool is_slave()                      { return (_icw[ICW4] & ICW4_BUF) ? (~_icw[ICW4] & ICW4_MS) : _virq; }
@@ -351,11 +355,44 @@ class PicDevice : public StaticReceiver<PicDevice>
       return false;
     }
 
+  bool receive(MessageRestore &msg)
+  {
+        const mword bytes = reinterpret_cast<mword>(&_restore_processed)
+            -reinterpret_cast<mword>(&_base);
+
+        if (msg.devtype == MessageRestore::RESTORE_RESTART) {
+            _restore_processed = false;
+            msg.bytes += bytes + sizeof(msg);
+            return false;
+        }
+
+        if (msg.devtype != MessageRestore::RESTORE_PIC || _restore_processed) return false;
+
+        if (msg.write) {
+            msg.bytes = bytes;
+            msg.id1 = _base;
+            msg.id2 = _upstream_irq;
+            memcpy(msg.space, reinterpret_cast<void*>(&_base), bytes);
+
+        }
+        else {
+            if (msg.id1 != _base || msg.id2 != _upstream_irq) return false;
+
+            memcpy(reinterpret_cast<void*>(&_base), msg.space, bytes);
+        }
+
+        //Logging::printf("%s PIC (base %x, IRQ %x)\n", msg.write?"Saved":"Restored", msg.id1, msg.id2);
+        _restore_processed = true;
+        return true;
+  }
+
+
+
 
  PicDevice(DBus<MessageIrqLines> &bus_irq, DBus<MessagePic> &bus_pic, DBus<MessageLegacy> &bus_legacy, DBus<MessageIrqNotify> &bus_notify,
 	   unsigned short base, unsigned char irq, unsigned short elcr_base, unsigned char virq) :
    _bus_irq(bus_irq), _bus_pic(bus_pic), _bus_legacy(bus_legacy), _bus_notify(bus_notify),
-   _base(base), _upstream_irq(irq), _elcr_base(elcr_base), _virq(virq), _icw_mode(OCW1)
+   _base(base), _upstream_irq(irq), _elcr_base(elcr_base), _virq(virq), _icw_mode(OCW1), _restore_processed(false)
   {
     _icw[ICW1] = 0;
     reset_values();
@@ -384,8 +421,10 @@ PARAM_HANDLER(pic,
   mb.bus_ioout.   add(dev, PicDevice::receive_static<MessageIOOut>);
   mb.bus_irqlines.add(dev, PicDevice::receive_static<MessageIrqLines>);
   mb.bus_pic.     add(dev, PicDevice::receive_static<MessagePic>);
+  mb.bus_restore.add(dev, PicDevice::receive_static<MessageRestore>);
   if (!virq)
     mb.bus_legacy.add(dev, PicDevice::receive_static<MessageLegacy>);
   virq += 8;
+
 }
 

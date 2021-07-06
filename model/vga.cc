@@ -4,6 +4,8 @@
  * Copyright (C) 2007-2010, Bernhard Kauer <bk@vmmon.org>
  * Economic rights: Technische Universitaet Dresden (Germany)
  *
+ * Copyright (C) 2013 Jacek Galowicz, Intel Corporation.
+ *
  * This file is part of Vancouver.
  *
  * Vancouver is free software: you can redistribute it and/or modify
@@ -45,6 +47,9 @@ class Vga : public StaticReceiver<Vga>, public BiosCommon
   unsigned char  _crt_index;
   unsigned       _ebda_segment;
   unsigned       _vbe_mode;
+  mword          _last_videomode_request;
+
+  bool _restore_processed;
 
   void puts_guest(const char *msg) {
     unsigned pos = _regs.cursor_pos - TEXT_OFFSET;
@@ -174,6 +179,7 @@ class Vga : public StaticReceiver<Vga>, public BiosCommon
       case 0x4f02: // set vbemode
 	{
 	  ConsoleModeInfo info;
+      _last_videomode_request = cpu->ebx;
 	  unsigned index = get_vesa_mode(cpu->ebx & 0x0fff, &info);
 	  if (index != ~0u && info.attr & 1)
 	    {
@@ -349,6 +355,12 @@ class Vga : public StaticReceiver<Vga>, public BiosCommon
     return true;
   }
 
+  void set_videomode(mword videomode)
+  {
+      ConsoleModeInfo info;
+      _regs.mode = get_vesa_mode(videomode & 0x0fff, &info);
+  }
+
 public:
 
   bool  receive(MessageBios &msg)
@@ -522,9 +534,55 @@ public:
     return true;
   }
 
+  bool receive(MessageRestore &msg)
+  {
+      const mword bytes = reinterpret_cast<mword>(&_restore_processed)
+          -reinterpret_cast<mword>(&_view);
+
+      if (msg.devtype == MessageRestore::RESTORE_RESTART) {
+          _restore_processed = false;
+          msg.bytes += bytes + sizeof(msg);
+          return false;
+      }
+
+      if (msg.devtype == MessageRestore::VGA_DISPLAY_GUEST) {
+          if (msg.write) memset(_framebuffer_ptr, 0, _framebuffer_size);
+          puts_guest(msg.space);
+          return true;
+      }
+
+      if (msg.devtype == MessageRestore::VGA_VIDEOMODE) {
+          if (msg.write) {
+              set_videomode(msg.bytes);
+              MessageConsole cmsg(MessageConsole::TYPE_SWITCH_VIEW);
+              cmsg.view = _view;
+              _mb.bus_console.send(cmsg);
+          }
+          else
+              msg.bytes = _last_videomode_request;
+          return true;
+      }
+
+      if (msg.devtype != MessageRestore::RESTORE_VGA || _restore_processed) return false;
+
+      if (msg.write) {
+          msg.bytes = bytes;
+          memcpy(msg.space, reinterpret_cast<void*>(&_view), bytes);
+
+      }
+      else {
+          memcpy(reinterpret_cast<void*>(&_view), msg.space, bytes);
+          set_videomode(_last_videomode_request);
+      }
+
+      //Logging::printf("%s VGA\n", msg.write?"Saved":"Restored");
+      _restore_processed = true;
+      return true;
+  }
+
 
   Vga(Motherboard &mb, unsigned short iobase, char *framebuffer_ptr, uintptr_t framebuffer_phys, size_t framebuffer_size)
-    : BiosCommon(mb), _iobase(iobase), _framebuffer_ptr(framebuffer_ptr), _framebuffer_phys(framebuffer_phys), _framebuffer_size(framebuffer_size), _crt_index(0), _ebda_segment(), _vbe_mode()
+    : BiosCommon(mb), _iobase(iobase), _framebuffer_ptr(framebuffer_ptr), _framebuffer_phys(framebuffer_phys), _framebuffer_size(framebuffer_size), _crt_index(0), _ebda_segment(), _vbe_mode(), _last_videomode_request(), _restore_processed(false)
   {
     assert(!(framebuffer_phys & 0xfff));
     assert(!(framebuffer_size & 0xfff));
@@ -576,5 +634,6 @@ PARAM_HANDLER(vga,
   mb.bus_mem      .add(dev, Vga::receive_static<MessageMem>);
   mb.bus_memregion.add(dev, Vga::receive_static<MessageMemRegion>);
   mb.bus_discovery.add(dev, Vga::receive_static<MessageDiscovery>);
+  mb.bus_restore.add(dev, Vga::receive_static<MessageRestore>);
 }
 

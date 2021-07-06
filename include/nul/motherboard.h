@@ -4,6 +4,8 @@
  * Copyright (C) 2007-2010, Bernhard Kauer <bk@vmmon.org>
  * Economic rights: Technische Universitaet Dresden (Germany)
  *
+ * Copyright (C) 2013 Jacek Galowicz, Intel Corporation.
+ *
  * This file is part of Vancouver.
  *
  * Vancouver is free software: you can redistribute it and/or modify
@@ -48,6 +50,7 @@ class Motherboard
 
  public:
   DBus<MessageAcpi>         bus_acpi;
+  DBus<MessageAcpiEvent>    bus_acpi_event;
   DBus<MessageAhciSetDrive> bus_ahcicontroller;
   DBus<MessageApic>         bus_apic;
   DBus<MessageBios>         bus_bios;
@@ -78,6 +81,8 @@ class Motherboard
   DBus<MessageTimeout>      bus_timeout;    ///< Timer expiration notifications 
   DBus<MessageTimer>        bus_timer;      ///< Request for timers
   DBus<MessageVesa>         bus_vesa;
+
+  DBus<MessageRestore>      bus_restore;
 
   VCpu *last_vcpu;
   Clock *clock() { return _clock; }

@@ -6,6 +6,8 @@
  * Copyright (C) 2009, Bernhard Kauer <bk@vmmon.org>
  * Economic rights: Technische Universitaet Dresden (Germany)
  *
+ * Copyright (C) 2013 Jacek Galowicz, Intel Corporation.
+ *
  * This file is part of Vancouver.
  *
  * Vancouver is free software: you can redistribute it and/or modify
@@ -110,7 +112,8 @@ struct MessageMemRegion
   uintptr_t start_page;
   unsigned      count;
   char *        ptr;
-  MessageMemRegion(uintptr_t _page) : page(_page), count(0), ptr(0) {}
+  bool      actual_physmem;
+  MessageMemRegion(uintptr_t _page) : page(_page), count(0), ptr(0), actual_physmem(false) {}
 };
 
 
@@ -254,6 +257,7 @@ struct MessageLegacy
       INTR,
       DEASS_INTR,
       INTA,
+      UNLOCK,
     } type;
   unsigned value;
   MessageLegacy(Type _type, unsigned _value=0) : type(_type), value(_value) {}
@@ -449,6 +453,10 @@ struct MessageHostOp
       OP_VCPU_BLOCK,
       OP_VCPU_RELEASE,
       OP_WAIT_CHILD,
+      OP_NEXT_DIRTY_PAGE,
+      OP_GET_CONFIG_STRING,
+      OP_MIGRATION_RETRIEVE_INIT,
+      OP_MIGRATION_START,
     } type;
   union {
     unsigned long value;
@@ -560,6 +568,23 @@ struct MessageAcpi
   MessageAcpi(unsigned _parent_bdf, unsigned _bdf, unsigned char _pin): type(ACPI_GET_IRQ), parent_bdf(_parent_bdf), bdf(_bdf), pin(_pin), gsi(~0u) {}
 };
 
+/**
+ * Virtual ACPI: Fixed and General Purpose Events
+ * can be triggered with these messages
+ */
+struct MessageAcpiEvent
+{
+    enum EventType {
+        ACPI_EVENT_FIXED,
+        ACPI_EVENT_GP,
+        ACPI_EVENT_HOT_UNPLUG,
+        ACPI_EVENT_HOT_REPLUG,
+    } type;
+    unsigned num;
+
+    MessageAcpiEvent(EventType _type, unsigned _num)
+        : type(_type), num(_num) {};
+};
 
 /**
  * Resource discovery between device models is done by the virtual
@@ -747,5 +772,53 @@ struct MessageNetwork
   MessageNetwork(const unsigned char *buffer, size_t len, unsigned client) : type(PACKET), buffer(buffer), len(len), client(client) {}
   MessageNetwork(unsigned type, unsigned client) : type(type), mac(0), client(client) { }
 };
+
+struct MessageRestore
+{
+    enum networkStrings {
+        MAGIC_STRING_DEVICE_DESC = 0x8D06F00D
+    };
+
+    enum restoreTypes {
+        RESTORE_RESTART = 0, // RESTART is sent over the restore bus for initialization
+        RESTORE_TIMEOUTLIST,
+        RESTORE_PIC,
+        RESTORE_LAPIC,
+        RESTORE_PIT,
+        RESTORE_VGA,
+        RESTORE_NIC,
+        RESTORE_ACPI,
+        RESTORE_VCPU,
+        RESTORE_LAST,
+        // This one is acutally a restore device type:
+        // vga.cc will react on this, printing messages on the guest screen.
+        VGA_DISPLAY_GUEST,
+        VGA_VIDEOMODE,
+        // This is for pass-through devices. They will un-/replug themselves
+        // out of/into the guest before/after live migration
+        PCI_PLUG,
+    };
+    unsigned long magic_string;
+    // Use these enums on devtype
+    unsigned devtype;
+    // The device will note down how many bytes of this structure it actually uses.
+    mword bytes;
+    // Two variables which every device type can use for identification
+    unsigned id1;
+    unsigned id2;
+    // write=true: Writing a device state onto disk. false: Reading back from disk
+    bool write;
+
+    // Space for saving the device state
+    char *space;
+
+    MessageRestore(unsigned _devtype, char *_space, bool _write) :
+        magic_string(MAGIC_STRING_DEVICE_DESC), devtype(_devtype),
+        bytes(0), id1(0), id2(0), write(_write), space(_space)
+    {}
+    bool magic_string_check() { return magic_string == MAGIC_STRING_DEVICE_DESC; }
+};
+
+
 
 /* EOF */

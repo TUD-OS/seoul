@@ -4,6 +4,8 @@
  * Copyright (C) 2013, Julian Stecklina <jsteckli@os.inf.tu-dresden.de>
  * Economic rights: Technische Universitaet Dresden (Germany)
  *
+ * Copyright (C) 2013 Jacek Galowicz, Intel Corporation.
+ *
  * This file is part of Seoul.
  *
  * Seoul is free software: you can redistribute it and/or modify it
@@ -147,6 +149,14 @@ class NcursesDisplay : public StaticReceiver<NcursesDisplay> {
           if (current_view < views.size() - 1)
             current_view ++;
         break;
+
+      case KEY_BACKSPACE: {
+        /* Migration example start event. As soon as the user hits this event,
+         * the VM will be migrated to the hard coded destination host. */
+        MessageHostOp msg(MessageHostOp::OP_MIGRATION_START,
+                /* destination ip, address: 192.168.0.1 */ 0xC0A80001ul);
+        mb.bus_hostop.send(msg);
+      }
       case ERR:
       default:
         break;

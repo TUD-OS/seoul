@@ -4,6 +4,8 @@
  * Copyright (C) 2010, Bernhard Kauer <bk@vmmon.org>
  * Economic rights: Technische Universitaet Dresden (Germany)
  *
+ * Copyright (C) 2013 Jacek Galowicz, Intel Corporation.
+ *
  * This file is part of Vancouver.
  *
  * Vancouver is free software: you can redistribute it and/or modify
@@ -36,7 +38,8 @@ struct CpuMessage {
     TYPE_WBINVD,
     TYPE_CHECK_IRQ,
     TYPE_CALC_IRQWINDOW,
-    TYPE_SINGLE_STEP
+    TYPE_SINGLE_STEP,
+    TYPE_ADD_TSC_OFF,
   } type;
   union {
     struct {
@@ -122,7 +125,8 @@ public:
     EVENT_DEBUG  = 1 << 17,
     STATE_BLOCK  = 1 << 18,
     STATE_WAKEUP = 1 << 19,
-    EVENT_HOST   = 1 << 20
+    EVENT_HOST   = 1 << 20,
+    EVENT_RESUME = 1 << 21
   };
 
   unsigned long long inj_count;

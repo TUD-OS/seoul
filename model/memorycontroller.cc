@@ -45,6 +45,7 @@ public:
     msg.start_page = _start >> 12;
     msg.count = (_end - _start) >> 12;
     msg.ptr = _physmem + _start;
+    msg.actual_physmem = true;
     return true;
   }
 
