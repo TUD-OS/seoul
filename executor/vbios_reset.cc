@@ -4,6 +4,8 @@
  * Copyright (C) 2009-2010, Bernhard Kauer <bk@vmmon.org>
  * Economic rights: Technische Universitaet Dresden (Germany)
  *
+ * Copyright (C) 2013 Jacek Galowicz, Intel Corporation.
+ *
  * This file is part of Vancouver.
  *
  * Vancouver is free software: you can redistribute it and/or modify
@@ -18,6 +20,11 @@
 
 #include "nul/motherboard.h"
 #include "executor/bios.h"
+
+/* This file contains the AML code of the DSDT in form
+ * of a string, which is available under the symbol name
+ * "AmlCode" */
+#include "dsdt.h"
 
 bool use_x2apic_mode;
 PARAM_HANDLER(x2apic_mode,
@@ -144,6 +151,15 @@ class VirtualBiosReset : public StaticReceiver<VirtualBiosReset>, public BiosCom
     // the ACPI IRQ is 9
     discovery_write_dw("FACP",  46,          9, 2);
 
+    /* Initialize DSDT table.
+     * Its content is defined as AML bytecode in dsdt.h */
+    discovery_write_st("DSDT", 0, "DSDT", 4);
+
+    /* Initialize FACS table.
+     * The table is left empty. Linux demands its existence
+     * before switching to ACPI mode. */
+    discovery_write_st("FACS", 0, "FACS", 4);
+
     // store what remains on memory in KB
     discovery_write_dw("bda", 0x13, _mem_size >> 10, 2);
     return jmp_int(msg, 0x19);
@@ -219,6 +235,28 @@ class VirtualBiosReset : public StaticReceiver<VirtualBiosReset>, public BiosCom
       // revision = 0 => ACPI version 1.0
       discovery_write_dw(name, 15, 0, 1);
       fix_acpi_checksum(_resources + index, 20, 8);
+    }
+    else if (!strcmp("DSDT", name)) {
+        unsigned table;
+        check1(false, !(table = alloc(sizeof(AmlCode), 0x10)),
+                "allocate ACPI table failed");
+        _resources[index] = Resource(name, table, sizeof(AmlCode), true);
+
+        // FADT contains a pointer to the DSDT
+        discovery_write_dw("FACP", 40, table, 4);
+
+        /* The DSDT is completely defined as AML bytecode in dsdt.h
+         * which was compiled from ASL by the Intel ASL compiler */
+        memcpy(_mem_ptr + table, AmlCode, sizeof(AmlCode));
+    }
+    else if (!strcmp("FACS", name)) {
+        unsigned table;
+        check1(false, !(table = alloc(36, 64)), "allocate ACPI table failed");
+        _resources[index] = Resource(name, table, 36, true);
+        init_acpi_table(name);
+
+        // FADT contains a pointer to the FACS
+        discovery_write_dw("FACP", 36, table, 4);
     }
     else {
       // we create an ACPI table

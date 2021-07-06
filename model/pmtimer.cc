@@ -4,6 +4,8 @@
  * Copyright (C) 2010, Bernhard Kauer <bk@vmmon.org>
  * Economic rights: Technische Universitaet Dresden (Germany)
  *
+ * Copyright (C) 2013 Markus Partheymueller, Intel Corporation.
+ *
  * This file is part of Vancouver.
  *
  * Vancouver is free software: you can redistribute it and/or modify
@@ -34,6 +36,9 @@ private:
   unsigned _iobase;
   enum { FREQ = 3579545 };
 public:
+  bool  claim(MessageIOIn &msg) {
+    return (msg.port == _iobase && msg.type == MessageIOIn::TYPE_INL);
+  }
   bool  receive(MessageIOIn &msg) {
 
     if (msg.port != _iobase || msg.type != MessageIOIn::TYPE_INL)  return false;
@@ -55,6 +60,7 @@ public:
   PmTimer(Motherboard &mb, unsigned iobase) : _mb(mb), _iobase(iobase) {
 
     _mb.bus_ioin.add(this,      receive_static<MessageIOIn>);
+    _mb.bus_ioin.add_iothread_callback(this, claim_static<MessageIOIn>);
     _mb.bus_discovery.add(this, discover);
   }
 };

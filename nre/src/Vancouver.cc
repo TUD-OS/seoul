@@ -3,6 +3,8 @@
  * Copyright (C) 2007-2009, Bernhard Kauer <bk@vmmon.org>
  * Economic rights: Technische Universitaet Dresden (Germany)
  *
+ * Copyright (C) 2013 Markus Partheymueller, Intel Corporation.
+ *
  * This file is part of Vancouver.
  *
  * Vancouver is free software: you can redistribute it and/or modify
@@ -36,6 +38,7 @@ using namespace nre;
 
 static bool initialized = false;
 static size_t ncpu = 1;
+size_t last_cpunr = 0;
 static DataSpace *guest_mem = nullptr;
 static size_t guest_size = 0;
 static size_t console = 1;
@@ -221,7 +224,8 @@ bool Vancouver::receive(MessageHostOp &msg) {
         break;
 
         case MessageHostOp::OP_VCPU_CREATE_BACKEND: {
-            cpu_t cpu = CPU::current().log_id();
+            cpu_t cpu = (++last_cpunr + CPU::current().log_id())%CPU::count();
+            Serial::get() << "Create VCPU pinned to CPU " << fmt(cpu, "%d") << "\n";
             VCPUBackend *v = new VCPUBackend(&_mb, msg.vcpu, nre::Hip::get().has_svm(), cpu);
             msg.value = reinterpret_cast<ulong>(v);
             msg.vcpu->executor.add(this, receive_static<CpuMessage> );
@@ -231,17 +235,17 @@ bool Vancouver::receive(MessageHostOp &msg) {
 
         case MessageHostOp::OP_VCPU_BLOCK: {
             VCPUBackend *v = reinterpret_cast<VCPUBackend*>(msg.value);
-            globalsm.up();
-            v->sm().down();
-            globalsm.down();
+            bool block = !initialized;
+            if (block) globalsm.up();
+            v->sm().zero();
+            if (block) globalsm.down();
             res = true;
         }
         break;
 
         case MessageHostOp::OP_VCPU_RELEASE: {
             VCPUBackend *v = reinterpret_cast<VCPUBackend*>(msg.value);
-            if(msg.len)
-                v->sm().up();
+            v->sm().up();
             v->vcpu().recall();
             res = true;
         }
@@ -281,10 +285,10 @@ bool Vancouver::receive(MessageTimer &msg) {
     COUNTER_INC("requestTO");
     switch(msg.type) {
         case MessageTimer::TIMER_NEW:
-            msg.nr = _timeouts.alloc();
+            msg.nr = _timeouts[CPU::current().log_id()]->alloc();
             return true;
         case MessageTimer::TIMER_REQUEST_TIMEOUT:
-            _timeouts.request(msg.nr, msg.abstime);
+            _timeouts[CPU::current().log_id()]->request(msg.nr, msg.abstime);
             break;
         default:
             return false;
@@ -294,7 +298,7 @@ bool Vancouver::receive(MessageTimer &msg) {
 
 bool Vancouver::receive(MessageTime &msg) {
     timevalue_t ts, wallclock;
-    _timeouts.time(ts, wallclock);
+    _timeouts[CPU::current().log_id()]->time(ts, wallclock);
     msg.timestamp = ts;
     msg.wallclocktime = wallclock;
     return true;
@@ -304,6 +308,7 @@ bool Vancouver::receive(MessageLegacy &msg) {
     if(msg.type != MessageLegacy::RESET)
         return false;
     // TODO ??
+    _iothread_obj->reset();
     return true;
 }
 
@@ -414,7 +419,6 @@ void Vancouver::network_thread(void*) {
             break;
 
         {
-            ScopedLock<UserSm> guard(&globalsm);
             MessageNetwork msg(packet, len, 0);
             vc->_mb.bus_network.send(msg);
         }
@@ -451,7 +455,6 @@ void Vancouver::keyboard_thread(void*) {
             }
         }
 
-        ScopedLock<UserSm> guard(&globalsm);
         MessageInput msg(0x10000, pk.scancode | pk.flags);
         vc->_mb.bus_input.send(msg);
     }
@@ -509,6 +512,11 @@ void Vancouver::create_vcpus() {
         vcpu->set_cpuid(1, 2, ecx_1, 0x00000201); // +SSE3,+SSSE3
         vcpu->set_cpuid(1, 3, edx_1, 0x0f80a9bf | (1 << 28)); // -PAE,-PSE36, -MTRR,+MMX,+SSE,+SSE2,+SEP
     }
+}
+
+void Vancouver::iothread_worker(void *) {
+    Vancouver *vc = Thread::current()->get_tls<Vancouver*>(Thread::TLS_PARAM);
+    vc->iothread()->worker();
 }
 
 int main(int argc, char **argv) {

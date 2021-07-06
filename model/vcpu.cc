@@ -4,6 +4,9 @@
  * Copyright (C) 2010, Bernhard Kauer <bk@vmmon.org>
  * Economic rights: Technische Universitaet Dresden (Germany)
  *
+ * Copyright (C) 2013 Jacek Galowicz, Intel Corporation.
+ * Copyright (C) 2013 Markus Partheymueller, Intel Corporation.
+ *
  * This file is part of Vancouver.
  *
  * Vancouver is free software: you can redistribute it and/or modify
@@ -32,6 +35,7 @@ class VirtualCpu : public VCpu, public StaticReceiver<VirtualCpu>
 
   volatile unsigned _event;
   volatile unsigned _sipi;
+  unsigned long _intr_hint;
 
   unsigned char debugioin[8192];
   unsigned char debugioout[8192];
@@ -204,6 +208,12 @@ class VirtualCpu : public VCpu, public StaticReceiver<VirtualCpu>
     msg.mtr_out |= MTD_STATE | MTD_INJ;
 
     if (!old_event)  return;
+
+    if (old_event & EVENT_RESUME) {
+        Cpu::atomic_and<volatile unsigned>(&_event, ~(old_event & EVENT_RESUME));
+        cpu->actv_state = 0;
+    }
+
     if (old_event & (EVENT_DEBUG | EVENT_HOST)) {
       if (old_event & EVENT_DEBUG)
         dprintf("state %x event %8x eip %8x eax %x ebx %x edx %x esi %x\n", cpu->actv_state, old_event, cpu->eip, cpu->eax, cpu->ebx, cpu->edx, cpu->esi);
@@ -267,16 +277,32 @@ class VirtualCpu : public VCpu, public StaticReceiver<VirtualCpu>
     // if we can not inject interrupts or if we are in shutdown state return
     if (cpu->intr_state & 0x3 || ~cpu->efl & 0x200 || cpu->actv_state == 2) return;
 
+    unsigned long intr = _intr_hint;
+
     LapicEvent msg2(LapicEvent::INTA);
     if (old_event & EVENT_EXTINT) {
       // EXTINT IRQ via MSI or IPI: INTA directly from the PIC
       Cpu::atomic_and<volatile unsigned>(&_event, ~VCpu::EVENT_EXTINT);
-      receive(msg2);
+      LapicEvent check(LapicEvent::CHECK_INTR);
+      check.value = 0;
+      if (receive(check) && check.value)
+        receive(msg2);
+      else {
+        return;
+      }
     }
-    else if (old_event & EVENT_INTR) {
+    else if (intr & 1) {
       // interrupt from the APIC or directly via INTR line - INTA via LAPIC
       // do not clear EVENT_INTR here, as the PIC or the LAPIC will do this for us
-      bus_lapic.send(msg2, true);
+      LapicEvent check(LapicEvent::CHECK_INTR);
+      check.value = 0;
+      if (bus_lapic.send(check, true) && check.value) {
+        bus_lapic.send(msg2, true);
+      } else {
+        Cpu::cmpxchg8b(&_intr_hint, intr, (intr + 4) & ~1ULL);
+        Cpu::atomic_and<volatile unsigned>(&_event, ~EVENT_INTR);
+        return;
+      }
     } else return;
 
     cpu->inj_info = msg2.value | 0x80000000;
@@ -315,8 +341,12 @@ class VirtualCpu : public VCpu, public StaticReceiver<VirtualCpu>
   void got_event(unsigned value) {
     COUNTER_INC("EVENT");
 
-    if (value & DEASS_INTR) Cpu::atomic_and<volatile unsigned>(&_event, ~EVENT_INTR);
-    if (!((~_event & value) & (EVENT_MASK | EVENT_DEBUG | EVENT_HOST))) return;
+    Cpu::atomic_xadd<unsigned long, unsigned>(&_intr_hint, 4);
+    if (value & EVENT_INTR) Cpu::atomic_or<unsigned long>(&_intr_hint, 1);
+
+    /* Avoid delayed DEASS messages. The event loop clears INTR itself.
+    if (value & DEASS_INTR) Cpu::atomic_and<volatile unsigned>(&_event, ~EVENT_INTR);*/
+    if (!((~(_event & ~EVENT_INTR) & value) & (EVENT_MASK | EVENT_DEBUG | EVENT_HOST))) return;
 
     // INIT or AP RESET - go to the wait-for-sipi state
     if ((value & EVENT_MASK) == EVENT_INIT)
@@ -331,7 +361,7 @@ class VirtualCpu : public VCpu, public StaticReceiver<VirtualCpu>
        */
       if (Cpu::cmpxchg4b(&_sipi, 0, value)) return;
 
-    Cpu::atomic_or<volatile unsigned>(&_event, STATE_WAKEUP | (value & (EVENT_MASK | EVENT_DEBUG | EVENT_HOST)));
+    Cpu::atomic_or<volatile unsigned>(&_event, STATE_WAKEUP | (value & (EVENT_MASK | EVENT_DEBUG | EVENT_HOST | EVENT_RESUME)));
 
 
     MessageHostOp msg(MessageHostOp::OP_VCPU_RELEASE, _hostop_id, _event & STATE_BLOCK);
@@ -342,6 +372,7 @@ public:
   /**
    * Forward MEM requests to the motherboard.
    */
+  bool claim(MessageMem &msg) { /* The entire vCPU subsystem should be bypassing */ return true; }
   bool receive(MessageMem &msg) { return _mb.bus_mem.send(msg, true); }
   bool receive(MessageMemRegion &msg) { return _mb.bus_memregion.send(msg, true); }
 
@@ -351,6 +382,11 @@ public:
     if (msg.type == MessageLegacy::RESET) {
       got_event(EVENT_RESET);
       return true;
+    }
+
+    if (msg.type == MessageLegacy::UNLOCK) {
+        got_event(EVENT_RESUME);
+        return true;
     }
 
     // BSP receives only legacy signals if the LAPIC is disabled
@@ -379,10 +415,22 @@ public:
 	msg.value = msg2.value;
       return true;
     }
+    if (msg.type == LapicEvent::CHECK_INTR) {
+      MessageLegacy check(MessageLegacy::CHECK_INTR);
+      _mb.bus_legacy.send(check);
+      msg.value = (check.value & 0xff00);
+      return true;
+    }
     return false;
   }
 
+  bool claim(CpuMessage &msg) { /* Entire vCPU subsystem should be bypassing */ return true; }
   bool receive(CpuMessage &msg) {
+
+    if (msg.type == CpuMessage::TYPE_ADD_TSC_OFF) {
+        _reset_tsc_off += msg.current_tsc_off;
+        return true;
+    }
 
     // TSC drift compensation.
     if (msg.type != CpuMessage::TYPE_CPUID_WRITE && msg.mtr_in & MTD_TSC && ~msg.mtr_out & MTD_TSC) {
@@ -447,6 +495,7 @@ public:
     case CpuMessage::TYPE_SINGLE_STEP:
     case CpuMessage::TYPE_WBINVD:
     case CpuMessage::TYPE_INVD:
+    case CpuMessage::TYPE_ADD_TSC_OFF:
     default:
       return false;
     }
@@ -469,8 +518,10 @@ public:
 
     // add to the busses
     executor. add(this, VirtualCpu::receive_static<CpuMessage>);
+    executor.add_iothread_callback(this, VirtualCpu::claim_static<CpuMessage>);
     bus_event.add(this, VirtualCpu::receive_static<CpuEvent>);
     mem.      add(this, VirtualCpu::receive_static<MessageMem>);
+    mem.add_iothread_callback(this, VirtualCpu::claim_static<MessageMem>);
     memregion.add(this, VirtualCpu::receive_static<MessageMemRegion>);
     mb.bus_legacy.add(this, VirtualCpu::receive_static<MessageLegacy>);
     bus_lapic.add(this, VirtualCpu::receive_static<LapicEvent>);

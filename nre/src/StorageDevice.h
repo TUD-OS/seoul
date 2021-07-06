@@ -2,6 +2,8 @@
  * Copyright (C) 2012, Nils Asmussen <nils@os.inf.tu-dresden.de>
  * Economic rights: Technische Universitaet Dresden (Germany)
  *
+ * Copyright (C) 2013 Markus Partheymueller, Intel Corporation.
+ *
  * This file is part of NRE (NOVA runtime environment).
  *
  * NRE is free software: you can redistribute it and/or modify
@@ -34,7 +36,7 @@ public:
         nre::Reference<nre::GlobalThread> gt = nre::GlobalThread::create(
             thread, nre::CPU::current().log_id(), buffer);
         gt->set_tls<StorageDevice*>(nre::Thread::TLS_PARAM, this);
-        gt->start();
+        gt->start(nre::Qpd(2, 10000));
     }
 
     MessageDisk::Status get_params(DiskParameter &params) {
@@ -78,7 +80,6 @@ private:
             nre::Storage::Packet *pk = sd->_sess.consumer().get();
             // the status isn't used anyway
             {
-                nre::ScopedLock<nre::UserSm> guard(&globalsm);
                 MessageDiskCommit msg(sd->_no, pk->tag, MessageDisk::DISK_OK);
                 sd->_bus.send(msg);
             }

@@ -4,6 +4,9 @@
  * Copyright (C) 2012, Julian Stecklina <jsteckli@os.inf.tu-dresden.de>
  * Economic rights: Technische Universitaet Dresden (Germany)
  *
+ * Copyright (C) 2013 Jacek Galowicz, Intel Corporation.
+ * Copyright (C) 2013 Markus Partheymueller, Intel Corporation.
+ *
  * This file is part of Seoul.
  *
  * Seoul is free software: you can redistribute it and/or modify it
@@ -48,6 +51,13 @@
 #include <vector>
 
 #include <seoul/unix.h>
+#include <nul/migration.h>
+
+#define USE_IOTHREAD
+
+#ifdef USE_IOTHREAD
+#include "iothread.h"
+#endif
 
 const char version_str[] =
 #include "version.inc"
@@ -86,7 +96,10 @@ static const char *pc_ps2[] = {
   "rtl8029:,9,0x300",
   "ahci:0xe0800000,14",
   "pmtimer:0x8000",
-  // 1 vCPU
+  // 4 vCPUs
+  "vcpu", "halifax", "vbios", "lapic",
+  "vcpu", "halifax", "vbios", "lapic",
+  "vcpu", "halifax", "vbios", "lapic",
   "vcpu", "halifax", "vbios", "lapic",
   NULL,
   };
@@ -97,9 +110,11 @@ static TimeoutList<32, void> timeouts;
 static timevalue             last_to = ~0ULL;
 static timer_t               timer_id;
 
-
-static Clock                 mb_clock(1000000);   // XXX Use correct frequency
-static Motherboard           mb(&mb_clock, NULL);
+Motherboard                 *mb;
+Clock                       *mb_clock;
+#ifdef USE_IOTHREAD
+IOThread                    *iothread_obj;
+#endif
 
 // Multiboot module data
 
@@ -166,6 +181,17 @@ static std::vector<Disk> disks;
 // Used to serialize all operations (for now).
 pthread_mutex_t irq_mtx;
 
+// Relevant to live migration
+
+Migration *_migrator;
+Migration::RestoreModes _restore_mode = Migration::MODE_OFF;
+unsigned _migration_ip;
+unsigned _migration_port;
+
+// the memory remapping procedure should only
+// remap memory in page size granularity, if set
+bool _track_page_usage = false;
+
 static void skip_instruction(CpuMessage &msg)
 {
   // advance EIP
@@ -231,8 +257,23 @@ static void *vcpu_thread_fn(void *arg)
 
   while (true) {
     pthread_mutex_lock(&irq_mtx);
+
+    if (_restore_mode == Migration::MODE_RECEIVE)
+        // This will block until everything is restored
+        _migrator->listen(_migration_port, &cpu_state);
+    else if (_restore_mode == Migration::MODE_SEND)
+        // This will block if the last memory resend round is reached
+        _migrator->save_guestregs(&cpu_state);
+
     handle_vcpu(false, CpuMessage::TYPE_SINGLE_STEP, vcpu, &cpu_state);
     // Logging::printf("eip %x\n", cpu_state.eip);
+
+    if (_restore_mode == Migration::MODE_RECEIVE) {
+        _restore_mode = Migration::MODE_OFF;
+        delete _migrator;
+        _migrator = NULL;
+        cpu_state.mtd = MTD_ALL;
+    }
     pthread_mutex_unlock(&irq_mtx);
   }
 
@@ -246,6 +287,39 @@ struct  Vcpu_info {
 };
 
 static std::vector<Vcpu_info> vcpu_info;
+
+static void *migration_thread_fn(void *)
+{
+    _migrator = new Migration(mb);
+    _migrator->send(_migration_ip, _migration_port);
+
+    delete _migrator;
+    _migrator = nullptr;
+
+    return nullptr;
+}
+
+static void start_migration_to(unsigned ip, unsigned port)
+{
+    _migration_ip = ip;
+    _migration_port = port;
+    _restore_mode = Migration::MODE_SEND;
+
+    pthread_t migthread;
+    if (0 != pthread_create(&migthread, NULL, migration_thread_fn, NULL)) {
+        perror("pthread_create");
+        return;
+    }
+    pthread_setname_np(migthread, "migration");
+}
+
+#ifdef USE_IOTHREAD
+void * iothread_worker(void *) {
+  iothread_obj->worker();
+
+  return NULL;
+}
+#endif
 
 static bool receive(Device *, MessageHostOp &msg)
 {
@@ -316,6 +390,122 @@ static bool receive(Device *, MessageHostOp &msg)
       msg.mac = mac_prefix << 16 | mac_host;
       break;
     }
+    case MessageHostOp::OP_NEXT_DIRTY_PAGE: {
+        /*
+         * What this does when it is properly implemented:
+         * - There is a variable "pageptr" which points
+         *   to a page number.
+         * - The user emits this message host op when
+         *   he wants a dirty page region
+         * - pageptr is moved incrementally until
+         *   a dirty page region is found.
+         *   This page region is then remapped RO
+         *   and returned to the user as a CRD description
+         * - pageptr wraps around if it exceeds guest mem size.
+         */
+#if PORTED_TO_UNIX
+        const unsigned physpages = _physsize >> 12;
+        static unsigned long pageptr = 0;
+
+        _track_page_usage = true;
+
+        Crd reg = nova_lookup(Crd(pageptr, 0, DESC_MEM_ALL));
+        // There will be several mappings, but we want to see the ones
+        // which are set to "writable by the guest"
+
+        unsigned increment = 0;
+        do {
+            if (increment >= physpages) {
+                // That's it for now. Come back later.
+                msg.value = 0;
+                return true;
+            }
+            MessageMemRegion mmsg(pageptr);
+            if (!_mb->bus_memregion.send(mmsg, true)) {
+                // No one claims this region. Do not track.
+                pageptr = (pageptr + 1) % physpages;
+                ++increment;
+                continue;
+            }
+            if (!mmsg.actual_physmem) {
+                // This is no physmem.
+                pageptr += mmsg.count;
+                increment += mmsg.count;
+                if (pageptr > physpages) pageptr = 0;
+                continue;
+            }
+            reg = nova_lookup(Crd(pageptr, 0, DESC_MEM_ALL));
+            if (!(reg.attr() & DESC_RIGHT_W)) {
+                // Not write-mapped, hence not dirty.
+                pageptr += 1 << reg.order();
+                increment += 1 << reg.order();
+                if (pageptr > physpages) pageptr = 0;
+                continue;
+            }
+
+            break;
+        } while (1);
+
+        // reg now describes a region which is guest-writable
+        // This means that the guest wrote to it before and it is now considered "dirty"
+
+        // Tell the user "where" and "how many"
+        msg.phys    = pageptr << 12;
+        msg.phys_len = reg.order();
+        msg.value = reg.value();
+
+        // Make this page read-only for the guest, so it is considered "clean" now.
+        nova_revoke(Crd((reg.base() + _physmem) >> 12, reg.order(),
+                    DESC_RIGHT_W | DESC_TYPE_MEM), false);
+        pageptr += 1 << reg.order();
+        if (pageptr >= physpages) pageptr = 0;
+
+#endif
+        return true;
+    }
+    break;
+    case MessageHostOp::OP_GET_CONFIG_STRING: {
+        char *cmdline = NULL;
+
+#if PORTED_TO_UNIX
+        // Retrieve the command line string length from sigma0
+        MessageConsole cmsg(MessageConsole::TYPE_START, cmdline);
+        cmsg.read = true;
+        cmsg.mem = 0;
+        unsigned ret = Sigma0Base::console(cmsg);
+        if (ret) {
+            Logging::printf("Error retrieving the command line"
+                    " string length from sigma0.\n");
+            return false;
+        }
+
+        // Retrieve the command line itself
+        cmdline = new char[cmsg.mem+1];
+        cmsg.mem += 1;
+        cmsg.cmdline = cmdline;
+        ret = Sigma0Base::console(cmsg);
+        if (ret) {
+            Logging::printf("Error retrieving the command line string sigma0.\n");
+            return false;
+        }
+#endif
+
+        msg.obj = cmdline;
+    }
+    break;
+
+    case MessageHostOp::OP_MIGRATION_RETRIEVE_INIT: {
+        _migration_port = msg.value;
+        _restore_mode = Migration::MODE_RECEIVE;
+        _migrator = new Migration(mb);
+    }
+    break;
+    case MessageHostOp::OP_MIGRATION_START: {
+        start_migration_to(msg.value, 9000);
+        return true;
+    }
+    break;
+
     default:
       Logging::panic("%s - unimplemented operation %#x\n",
                        __PRETTY_FUNCTION__, msg.type);
@@ -326,7 +516,7 @@ static bool receive(Device *, MessageHostOp &msg)
 
 static void timeout_trigger()
 {
-  timevalue now = mb.clock()->time();
+  timevalue now = mb_clock->time();
 
   // Force time reprogramming. Otherwise, we might not reprogram a
   // timer, if the timeout event reached us too early.
@@ -337,7 +527,7 @@ static void timeout_trigger()
   while ((nr = timeouts.trigger(now))) {
     MessageTimeout msg(nr, timeouts.timeout());
     timeouts.cancel(nr);
-    mb.bus_timeout.send(msg);
+    mb->bus_timeout.send(msg);
   }
 }
 
@@ -346,7 +536,7 @@ static void timeout_request()
 {
   timevalue next_to = timeouts.timeout();
   if (next_to != ~0ULL) {
-    unsigned long long delta = mb_clock.delta(next_to, 1000000000UL);
+    unsigned long long delta = mb_clock->delta(next_to, 1000000000UL);
 
     if (delta == 0) {
       // Timeout pending NOW. Skip programming a timeout.
@@ -400,7 +590,7 @@ static bool receive(Device *, MessageTime &msg)
 {
   struct timeval tv;
   gettimeofday(&tv, NULL);
-  msg.timestamp = mb_clock.clock(MessageTime::FREQUENCY);
+  msg.timestamp = mb_clock->clock(MessageTime::FREQUENCY);
 
   assert(MessageTime::FREQUENCY == 1000000U);
   msg.wallclocktime = (uint64)tv.tv_sec * 1000000 + tv.tv_usec;
@@ -430,7 +620,7 @@ static void *network_io_thread_fn(void *)
     MessageNetwork msg(network_pbuf, res, 0);
 
     pthread_mutex_lock(&irq_mtx);
-    mb.bus_network.send(msg);
+    mb->bus_network.send(msg);
     pthread_mutex_unlock(&irq_mtx);
   }
 
@@ -511,7 +701,7 @@ static bool receive(Device *, MessageDisk &msg)
   }
 
   MessageDiskCommit cmsg(msg.disknr, msg.usertag, status);
-  mb.bus_diskcommit.send(cmsg);
+  mb->bus_diskcommit.send(cmsg);
 
   return true;
 }
@@ -587,13 +777,27 @@ int main(int argc, char **argv)
     return EXIT_FAILURE;
   }
 
+  mb_clock = new Clock(get_tsc_frequency());
+  mb = new Motherboard(mb_clock, NULL);
 
-  mb.bus_hostop .add(nullptr, receive);
-  mb.bus_timer  .add(nullptr, receive);
-  mb.bus_time   .add(nullptr, receive);
+#ifdef USE_IOTHREAD
+  iothread_obj = new IOThread(mb);
+  pthread_t iothread_worker_thread;
+  if (0 != pthread_create(&iothread_worker_thread, NULL, iothread_worker, NULL)) {
+    perror("create iothread_worker failed");
+    return EXIT_FAILURE;
+  }
+  pthread_setname_np(iothread_worker_thread, "iothread_worker");
+#endif
 
-  mb.bus_network.add(nullptr, receive);
-  mb.bus_disk   .add(nullptr, receive);
+  mb->bus_hostop .add(nullptr, receive);
+  mb->bus_timer  .add(nullptr, receive);
+  mb->bus_time   .add(nullptr, receive);
+
+  mb->bus_network.add(nullptr, receive);
+  mb->bus_disk   .add(nullptr, receive);
+
+  mb->bus_restore.add(&timeouts, TimeoutList<32, void>::receive_static<MessageRestore>);
 
   // Synchronization initialization
   if (0 != pthread_mutex_init(&irq_mtx, nullptr)) {
@@ -604,14 +808,19 @@ int main(int argc, char **argv)
 
   // Create standard PC
   for (const char **dev = pc_ps2; *dev != NULL; dev++) {
-    mb.handle_arg(*dev);
+    mb->handle_arg(*dev);
   }
 
   Logging::printf("Devices and %zu virtual CPU%s started successfully.\n",
                   vcpu_info.size(), vcpu_info.size() == 1 ? "" : "s");
 
+#ifdef USE_IOTHREAD
+  // Init I/O thread (vCPU local busses)
+  iothread_obj->init();
+#endif
+
   // init VCPUs
-  for (VCpu *vcpu = mb.last_vcpu; vcpu; vcpu=vcpu->get_last()) {
+  for (VCpu *vcpu = mb->last_vcpu; vcpu; vcpu=vcpu->get_last()) {
     Logging::printf("Initializing virtual CPU %p.\n", vcpu);
 
     // init CPU strings
@@ -633,7 +842,16 @@ int main(int argc, char **argv)
 
   Logging::printf("RESET device state\n");
   MessageLegacy msg2(MessageLegacy::RESET, 0);
-  mb.bus_legacy.send_fifo(msg2);
+  mb->bus_legacy.send_fifo(msg2);
+
+  if (_restore_mode != Migration::MODE_OFF) {
+      /*
+       * The following UNLOCK message helps the VCPU out of the lock
+       * it is blocked by and catches it into the recall handler.
+       */
+       MessageLegacy msg3(MessageLegacy::UNLOCK, 0);
+       mb->bus_legacy.send_fifo(msg3);
+  }
 
   pthread_t iothread;
   if (tap_fd) {

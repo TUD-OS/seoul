@@ -3,6 +3,8 @@
  * Copyright (C) 2007-2009, Bernhard Kauer <bk@vmmon.org>
  * Economic rights: Technische Universitaet Dresden (Germany)
  *
+ * Copyright (C) 2013 Markus Partheymueller, Intel Corporation.
+ *
  * This file is part of Vancouver.
  *
  * Vancouver is free software: you can redistribute it and/or modify
@@ -35,7 +37,6 @@ void Timeouts::timer_thread(void*) {
 }
 
 void Timeouts::trigger() {
-    ScopedLock<UserSm> guard(&globalsm);
     // TODO it can't be correct to not grab _sm here, because we might access stuff from
     // different threads here. but if we grab it here, we deadlock ourself because the devices
     // on the bus might call e.g. alloc().

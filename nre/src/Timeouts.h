@@ -3,6 +3,8 @@
  * Copyright (C) 2007-2009, Bernhard Kauer <bk@vmmon.org>
  * Economic rights: Technische Universitaet Dresden (Germany)
  *
+ * Copyright (C) 2013 Markus Partheymueller, Intel Corporation.
+ *
  * This file is part of Vancouver.
  *
  * Vancouver is free software: you can redistribute it and/or modify
@@ -26,20 +28,18 @@
 
 #include <nul/motherboard.h>
 
-extern nre::UserSm globalsm;
-
 class Timeouts {
     enum {
         NO_TIMEOUT  = ~0ULL
     };
 
 public:
-    Timeouts(Motherboard &mb)
-        : _mb(mb), _sm(), _timeouts(), _timer("timer"), _last_to(NO_TIMEOUT) {
+    Timeouts(Motherboard &mb, cpu_t cpu)
+        : _mb(mb), _cpu(cpu), _sm(), _timeouts(), _timer("timer"), _last_to(NO_TIMEOUT) {
         nre::Reference<nre::GlobalThread> gt = nre::GlobalThread::create(
-            timer_thread, nre::CPU::current().log_id(), "vmm-timeouts");
+            timer_thread, _cpu, "vmm-timeouts");
         gt->set_tls<Timeouts*>(nre::Thread::TLS_PARAM, this);
-        gt->start();
+        gt->start(nre::Qpd(2, 10000));
     }
 
     nre::TimerSession &session() {
@@ -67,8 +67,9 @@ private:
     void program();
 
     Motherboard &_mb;
+    cpu_t _cpu;
     nre::UserSm _sm;
-    nre::TimeoutList<32, void> _timeouts;
+    nre::TimeoutList<64, void> _timeouts;
     nre::TimerSession _timer;
     timevalue_t _last_to;
 };

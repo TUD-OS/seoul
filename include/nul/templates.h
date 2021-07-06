@@ -6,6 +6,8 @@
  *
  * This file is part of Vancouver.
  *
+ * Copyright (C) 2013 Markus Partheymueller, Intel Corporation.
+ *
  * Vancouver is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
@@ -26,6 +28,10 @@ class StaticReceiver : public Device
 public:
   template<class M>
   static bool receive_static(Device *o, M& msg) { return static_cast<Y*>(o)->receive(msg); }
+  template<class M>
+  static bool enqueue_static(Device *o, M& msg, MessageIOThread::Mode mode, MessageIOThread::Sync sync, unsigned *value, VCpu *vcpu=nullptr) { return static_cast<Y*>(o)->enqueue(msg, mode, sync, value, vcpu); }
+  template<class M>
+  static bool claim_static(Device *o, M& msg) { return static_cast<Y*>(o)->claim(msg); }
   StaticReceiver() : Device(__PRETTY_FUNCTION__) {};
 };
 

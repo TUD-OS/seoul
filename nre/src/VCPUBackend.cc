@@ -3,6 +3,8 @@
  * Copyright (C) 2007-2009, Bernhard Kauer <bk@vmmon.org>
  * Economic rights: Technische Universitaet Dresden (Germany)
  *
+ * Copyright (C) 2013 Markus Partheymueller, Intel Corporation.
+ *
  * This file is part of Vancouver.
  *
  * Vancouver is free software: you can redistribute it and/or modify
@@ -80,7 +82,6 @@ void VCPUBackend::handle_io(bool is_in, unsigned io_order, unsigned port) {
                    io_order, port, &uf->eax, uf->mtd);
     skip_instruction(msg);
     {
-        ScopedLock<UserSm> guard(&globalsm);
         if(!vcpu->executor.send(msg, true))
             Util::panic("nobody to execute %s at %x:%x\n", __func__, msg.cpu->cs.sel, msg.cpu->eip);
     }
@@ -96,8 +97,6 @@ void VCPUBackend::handle_vcpu(capsel_t pid, bool skip, CpuMessage::Type type) {
     CpuMessage msg(type, reinterpret_cast<CpuState*>(Thread::current()->utcb()), uf->mtd);
     if(skip)
         skip_instruction(msg);
-
-    ScopedLock<UserSm> guard(&globalsm);
 
     /**
      * Send the message to the VCpu.

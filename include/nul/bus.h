@@ -4,6 +4,8 @@
  * Copyright (C) 2007-2009, Bernhard Kauer <bk@vmmon.org>
  * Economic rights: Technische Universitaet Dresden (Germany)
  *
+ * Copyright (C) 2013 Markus Partheymueller, Intel Corporation.
+ *
  * This file is part of Vancouver.
  *
  * Vancouver is free software: you can redistribute it and/or modify
@@ -17,6 +19,7 @@
  */
 #pragma once
 
+#include "message.h"
 #include "service/logging.h"
 #include "service/string.h"
 
@@ -41,16 +44,28 @@ template <class M>
 class DBus
 {
   typedef bool (*ReceiveFunction)(Device *, M&);
+  typedef bool (*EnqueueFunction)(Device *, M&, MessageIOThread::Mode, MessageIOThread::Sync, unsigned*, VCpu *vcpu);
   struct Entry
   {
     Device *_dev;
     ReceiveFunction _func;
+  };
+  struct EnqEntry
+  {
+    Device *_dev;
+    VCpu *_vcpu;
+    EnqueueFunction _func;
   };
 
   unsigned long _debug_counter;
   unsigned _list_count;
   unsigned _list_size;
   struct Entry *_list;
+
+  unsigned _callback_count;
+  unsigned _callback_size;
+  struct Entry *_iothread_callback;
+  struct EnqEntry *_iothread_enqueue;
 
   /**
    * To avoid bugs we disallow the copy constuctor.
@@ -65,6 +80,14 @@ class DBus
     _list = n;
     _list_size = new_size;
   };
+  void set_callback_size(unsigned new_size)
+  {
+    Entry *n = new Entry[new_size];
+    memcpy(n, _iothread_callback, _callback_count * sizeof(*_iothread_callback));
+    if (_iothread_callback)  delete [] _iothread_callback;
+    _iothread_callback = n;
+    _callback_size = new_size;
+  };
 public:
 
   void add(Device *dev, ReceiveFunction func)
@@ -76,13 +99,99 @@ public:
     _list_count++;
   }
 
+  void add_iothread_callback(Device *dev, ReceiveFunction func)
+  {
+    if (_callback_count >= _callback_size)
+      set_callback_size(_callback_size > 0 ? _callback_size * 2 : 1);
+    _iothread_callback[_callback_count]._dev    = dev;
+    _iothread_callback[_callback_count]._func = func;
+    _callback_count++;
+  }
+
+  void set_iothread_enqueue(Device *dev, EnqueueFunction func, VCpu *vcpu=nullptr)
+  {
+    if (_iothread_enqueue == nullptr) {
+      delete [] _iothread_enqueue;
+      _iothread_enqueue = new EnqEntry;
+    }
+    _iothread_enqueue->_dev = dev;
+    _iothread_enqueue->_vcpu = vcpu;
+    _iothread_enqueue->_func = func;
+  }
+
   /**
-   * Send message LIFO.
+   * Send message directly.
    */
-  bool  send(M &msg, bool earlyout = false)
+  bool  send_direct_fifo(M &msg)
   {
     _debug_counter++;
     bool res = false;
+    for (unsigned i = 0; i < _list_count; i++)
+      res |= _list[i]._func(_list[i]._dev, msg);
+    return res;
+  }
+  bool  send_direct_rr(M &msg, unsigned *value) {
+    for (unsigned i = 0; i < _list_count; i++)
+      if (_list[i]._func(_list[(i + *value) % _list_count]._dev, msg)) {
+	*value = (i + *value + 1) % _list_count;
+	return true;
+      }
+    return false;
+  }
+  bool  send_direct(M &msg, MessageIOThread::Mode mode, unsigned *value=nullptr)
+  {
+    if (mode == MessageIOThread::MODE_FIFO) return send_direct_fifo(msg);
+    if (mode == MessageIOThread::MODE_RR) return send_direct_rr(msg, value);
+
+    _debug_counter++;
+    bool res = false;
+    bool earlyout = (mode == MessageIOThread::MODE_EARLYOUT);
+    for (unsigned i = _list_count; i-- && !(earlyout && res);)
+      res |= _list[i]._func(_list[i]._dev, msg);
+    return res;
+  }
+
+  /**
+   * Send message LIFO synchronously.
+   */
+  bool  send_sync(M &msg, bool earlyout = false)
+  {
+    bool res = false;
+    if (_iothread_callback) {
+      for (unsigned i = _callback_count; i-- && !res;) {
+        res |= _iothread_callback[i]._func(_iothread_callback[i]._dev, msg);
+      }
+    }
+    if (!res && _iothread_enqueue != nullptr) {
+      // No one wants the message directly, enqueue it.
+      if (_iothread_enqueue->_func(_iothread_enqueue->_dev, msg, earlyout ? MessageIOThread::MODE_EARLYOUT : MessageIOThread::MODE_NORMAL, MessageIOThread::SYNC_SYNC, nullptr, _iothread_enqueue->_vcpu))
+        return true;
+    }
+    _debug_counter++;
+    res = false;
+    for (unsigned i = _list_count; i-- && !(earlyout && res);)
+      res |= _list[i]._func(_list[i]._dev, msg);
+    return res;
+  }
+
+  /**
+   * Send message LIFO asynchronously.
+   */
+  bool  send(M &msg, bool earlyout = false)
+  {
+    bool res = false;
+    if (_iothread_callback) {
+      for (unsigned i = _callback_count; i-- && !res;) {
+        res |= _iothread_callback[i]._func(_iothread_callback[i]._dev, msg);
+      }
+    }
+    if (!res && _iothread_enqueue != nullptr) {
+      // No one wants the message directly, enqueue it.
+      if (_iothread_enqueue->_func(_iothread_enqueue->_dev, msg, earlyout ? MessageIOThread::MODE_EARLYOUT : MessageIOThread::MODE_NORMAL, MessageIOThread::SYNC_ASYNC, nullptr, _iothread_enqueue->_vcpu))
+        return true;
+    }
+    _debug_counter++;
+    res = false;
     for (unsigned i = _list_count; i-- && !(earlyout && res);)
       res |= _list[i]._func(_list[i]._dev, msg);
     return res;
@@ -93,8 +202,19 @@ public:
    */
   bool  send_fifo(M &msg)
   {
-    _debug_counter++;
     bool res = false;
+    if (_iothread_callback) {
+      for (unsigned i = _callback_count; i-- && !res;) {
+        res |= _iothread_callback[i]._func(_iothread_callback[i]._dev, msg);
+      }
+    }
+    if (!res && _iothread_enqueue != nullptr) {
+      // No one wants the message directly, enqueue it.
+      if (_iothread_enqueue->_func(_iothread_enqueue->_dev, msg, MessageIOThread::MODE_FIFO, MessageIOThread::SYNC_ASYNC, nullptr, _iothread_enqueue->_vcpu))
+        return true;
+    }
+    _debug_counter++;
+    res = false;
     for (unsigned i = 0; i < _list_count; i++)
       res |= _list[i]._func(_list[i]._dev, msg);
     return 0;
@@ -107,6 +227,17 @@ public:
    */
   bool  send_rr(M &msg, unsigned &start)
   {
+    bool res = false;
+    if (_iothread_callback) {
+      for (unsigned i = _callback_count; i-- && !res;) {
+        res |= _iothread_callback[i]._func(_iothread_callback[i]._dev, msg);
+      }
+    }
+    if (!res && _iothread_enqueue != nullptr) {
+      // No one wants the message directly, enqueue it.
+      if (_iothread_enqueue->_func(_iothread_enqueue->_dev, msg, MessageIOThread::MODE_RR, MessageIOThread::SYNC_ASYNC, &start, _iothread_enqueue->_vcpu))
+        return true;
+    }
     _debug_counter++;
     for (unsigned i = 0; i < _list_count; i++)
       if (_list[i]._func(_list[(i + start) % _list_count]._dev, msg)) {
@@ -138,5 +269,5 @@ public:
   }
 
   /** Default constructor. */
-  DBus() : _debug_counter(0), _list_count(0), _list_size(0), _list(nullptr) {}
+  DBus() : _debug_counter(0), _list_count(0), _list_size(0), _list(nullptr), _callback_count(0), _callback_size(0), _iothread_callback(nullptr), _iothread_enqueue(nullptr) {}
 };

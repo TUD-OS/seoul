@@ -5,6 +5,8 @@
  * Copyright (C) 2010, Julian Stecklina <jsteckli@os.inf.tu-dresden.de>
  * Economic rights: Technische Universitaet Dresden (Germany)
  *
+ * Copyright (C) 2013 Jacek Galowicz, Intel Corporation.
+ *
  * This file is part of Vancouver.
  *
  * Vancouver is free software: you can redistribute it and/or modify
@@ -578,6 +580,40 @@ class Model82576vf : public StaticReceiver<Model82576vf>
     uint32 raw[3*4];
   } _msix;
 
+  unsigned _ip_address;
+  EthernetAddr _guest_uses_mac;
+  bool processed;
+
+  void update_ip(unsigned char *packet, unsigned packet_len)
+  {
+      unsigned short packet_type = * reinterpret_cast<unsigned short*>(packet + 12);
+      if (packet_type == 0x0608) {
+          unsigned char *mac = packet + 14 +  8; // Source MAC address
+          unsigned char *ip  = packet + 14 + 14; // Source IP address
+
+          EthernetAddr ethaddr(mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+
+#if 0
+          Logging::printf("Sending packet type %x from MAC %08llx, IP %x\n",
+                  static_cast<unsigned>(packet_type),
+                  ethaddr.raw, *reinterpret_cast<unsigned*>(ip));
+#endif
+
+          _guest_uses_mac = ethaddr;
+          _ip_address = * reinterpret_cast<unsigned*>(ip);
+      }
+  }
+
+
+  void arp_gratuitous(const EthernetAddr &addr, const bool request)
+  {
+      const arp_packet arp(_guest_uses_mac, addr, _ip_address,
+              request ? 0x100 /* ARP_REQUEST */ : 0x200 /* ARP_REPLY */);
+
+      MessageNetwork m(reinterpret_cast<const unsigned char*>(&arp), sizeof(arp), 0);
+      _net.send(m);
+  }
+
   uint32 VTFRTIMER_compute()
   {
     // XXX
@@ -886,6 +922,62 @@ public:
     return false;
   }
 
+  bool receive(MessageRestore &msg)
+  {
+      const mword bytes = reinterpret_cast<mword>(&processed)
+          -reinterpret_cast<mword>(&_mac);
+
+      if (msg.devtype == MessageRestore::RESTORE_RESTART) {
+          processed = false;
+          msg.bytes += bytes + 2 * 0x1000 + sizeof(msg);
+          return false;
+      }
+
+      if (msg.devtype != MessageRestore::RESTORE_NIC || processed) return false;
+
+      if (msg.write) {
+          msg.bytes = bytes + 2 * 0x1000;
+          memcpy(msg.space, reinterpret_cast<void*>(&_mac), bytes);
+          memcpy(msg.space + bytes, reinterpret_cast<void*>(_local_rx_regs), 0x1000);
+          memcpy(msg.space + bytes + 0x1000, reinterpret_cast<void*>(_local_tx_regs), 0x1000);
+      }
+      else {
+          uint32 *local_rx_regs = _local_rx_regs;
+          uint32 *local_tx_regs = _local_tx_regs;
+          Clock  *clock = _clock;
+
+          memcpy(reinterpret_cast<void*>(&_mac), msg.space, bytes);
+
+          _local_rx_regs = local_rx_regs;
+          _local_tx_regs = local_tx_regs;
+          _clock = clock;
+
+          memcpy(_local_rx_regs, msg.space + bytes, 0x1000);
+          memcpy(_local_tx_regs, msg.space + bytes + 0x1000, 0x1000);
+
+          _rx_queues[0].parent = this;
+          _rx_queues[0].regs = local_rx_regs;
+          _rx_queues[1].parent = this;
+          _rx_queues[1].regs = local_rx_regs + 0x100/4;
+          _tx_queues[0].parent = this;
+          _tx_queues[0].regs = local_tx_regs;
+          _tx_queues[1].parent = this;
+          _tx_queues[1].regs = local_tx_regs + 0x100/4;
+
+          if (_ip_address) {
+              Logging::printf("Trying to claim: MAC " MAC_FMT " IP %x\n",
+                      MAC_SPLIT((&_guest_uses_mac)), _ip_address);
+              for (int i=0; i < 3; ++i)
+                  arp_gratuitous(EthernetAddr(0xffffffffffffull), true);
+          }
+      }
+
+      Logging::printf("%s NIC\n", msg.write?"Saved":"Restored");
+      processed = true;
+      return true;
+  }
+
+
   Model82576vf(uint64 mac, DBus<MessageNetwork> &net,
 	       DBus<MessageMem> *bus_mem, DBus<MessageMemRegion> *bus_memregion,
 	       Clock *clock, DBus<MessageTimer> &timer,
@@ -895,7 +987,8 @@ public:
       _clock(clock), _timer(timer),
       _mem_mmio(mem_mmio), _mem_msix(mem_msix),
       _txpoll_us(txpoll_us), _map_rx(map_rx), _bdf(bdf),
-      _promisc_default(promisc_default)
+      _promisc_default(promisc_default), _ip_address(0), _guest_uses_mac(0),
+      processed(false)
   {
     Logging::printf("Attached 82576VF model at %08x+0x4000, %08x+0x1000\n",
 		    mem_mmio, mem_msix);
@@ -946,6 +1039,7 @@ PARAM_HANDLER(intel82576vf,
   mb.bus_network. add(dev, &Model82576vf::receive_static<MessageNetwork>);
   mb.bus_timeout. add(dev, &Model82576vf::receive_static<MessageTimeout>);
   mb.bus_legacy.  add(dev, &Model82576vf::receive_static<MessageLegacy>);
+  mb.bus_restore. add(dev, &Model82576vf::receive_static<MessageRestore>);
 }
 
 

@@ -3,6 +3,8 @@
  * Copyright (C) 2007-2009, Bernhard Kauer <bk@vmmon.org>
  * Economic rights: Technische Universitaet Dresden (Germany)
  *
+ * Copyright (C) 2013 Markus Partheymueller, Intel Corporation.
+ *
  * This file is part of Vancouver.
  *
  * Vancouver is free software: you can redistribute it and/or modify
@@ -31,6 +33,7 @@
 #include "StorageDevice.h"
 #include "VCPUBackend.h"
 #include "ConsoleBackend.h"
+#include "IOThread.h"
 
 extern nre::UserSm globalsm;
 
@@ -40,9 +43,22 @@ class Vancouver : public StaticReceiver<Vancouver> {
 public:
     explicit Vancouver(const char **args, size_t count, size_t console, const nre::String &constitle,
                        size_t fbsize)
-        : _clock(nre::Hip::get().freq_tsc * 1000), _mb(&_clock, nullptr), _timeouts(_mb),
+        : _clock(nre::Hip::get().freq_tsc * 1000), _mb(&_clock, nullptr), _iothread_obj(nullptr),
           _conssess("console", console, constitle), _console(this, fbsize), _netsess(),
           _vmmng(), _vcpus(), _stdevs() {
+
+        _iothread_obj = new IOThread(&_mb);
+
+        // IOThread
+        nre::Reference<nre::GlobalThread> io = nre::GlobalThread::create(
+            iothread_worker, nre::CPU::current().log_id(), "vmm-io");
+        io->set_tls<Vancouver*>(nre::Thread::TLS_PARAM, this);
+        io->start(nre::Qpd(2, 10000));
+
+        _timeouts = new Timeouts *[nre::CPU::count()];
+        for (cpu_t i=0; i<nre::CPU::count(); i++)
+          _timeouts[i] = new Timeouts(_mb, i);
+
         // vmmanager is optional
         try {
             _vmmng = new nre::VMManagerSession("vmmanager");
@@ -63,7 +79,7 @@ public:
             nre::Reference<nre::GlobalThread> network = nre::GlobalThread::create(
                 network_thread, nre::CPU::current().log_id(), "vmm-network");
             network->set_tls<Vancouver*>(nre::Thread::TLS_PARAM, this);
-            network->start();
+            network->start(nre::Qpd(2, 10000));
         }
         catch(const nre::Exception &e) {
             nre::Serial::get() << "Unable to connect to network: " << e.msg() << "\n";
@@ -81,8 +97,8 @@ public:
     nre::ConsoleSession &console() {
         return _conssess;
     }
-    Timeouts &timeouts() {
-        return _timeouts;
+    Timeouts *timeouts(cpu_t cpu) {
+        return _timeouts[cpu];
     }
     uint64_t generate_mac() {
         static int macs = 0;
@@ -90,6 +106,7 @@ public:
             return _vmmng->generate_mac().raw();
         return BASE_MAC + macs++;
     }
+    IOThread *iothread() { return _iothread_obj; }
 
     void reset();
     bool receive(CpuMessage &msg);
@@ -106,13 +123,15 @@ public:
 private:
     static void network_thread(void*);
     static void keyboard_thread(void*);
+    static void iothread_worker(void*);
     static void vmmng_thread(void*);
     void create_devices(const char **args, size_t count);
     void create_vcpus();
 
     Clock _clock;
     Motherboard _mb;
-    Timeouts _timeouts;
+    IOThread *_iothread_obj;
+    Timeouts **_timeouts;
     nre::ConsoleSession _conssess;
     ConsoleBackend _console;
     nre::NetworkSession *_netsess;

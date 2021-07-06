@@ -4,6 +4,8 @@
  * Copyright (C) 2009, Bernhard Kauer <bk@vmmon.org>
  * Economic rights: Technische Universitaet Dresden (Germany)
  *
+ * Copyright (C) 2013 Markus Partheymueller, Intel Corporation.
+ *
  * This file is part of Vancouver.
  *
  * Vancouver is free software: you can redistribute it and/or modify
@@ -29,6 +31,10 @@ public:
   /****************************************************/
   /* Physmem access                                   */
   /****************************************************/
+  bool  claim(MessageMem &msg)
+  {
+    return ((msg.phys >= _start) && (msg.phys < (_end - 4)));
+  }
   bool  receive(MessageMem &msg)
   {
     if ((msg.phys < _start) || (msg.phys >= (_end - 4)))  return false;
@@ -45,6 +51,7 @@ public:
     msg.start_page = _start >> 12;
     msg.count = (_end - _start) >> 12;
     msg.ptr = _physmem + _start;
+    msg.actual_physmem = true;
     return true;
   }
 
@@ -68,5 +75,6 @@ PARAM_HANDLER(mem,
   MemoryController *dev = new MemoryController(msg.ptr, start, end);
   // physmem access
   mb.bus_mem.add(dev,       MemoryController::receive_static<MessageMem>);
+  mb.bus_mem.add_iothread_callback(dev,       MemoryController::claim_static<MessageMem>);
   mb.bus_memregion.add(dev, MemoryController::receive_static<MessageMemRegion>);
 }
